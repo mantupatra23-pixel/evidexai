@@ -18,7 +18,7 @@ EXPERIENTIAL_BASE_URL = os.getenv("EXPERIENTIAL_BASE_URL", "https://api.experien
 
 @app.get("/")
 def health_check():
-    return {"status": "healthy", "service": "Evidex Engine"}
+    return {"status": "healthy", "service": "Evidex Engine (Zero Cost Mode)"}
 
 @app.get("/api/search")
 async def search_evidence(q: str = Query(..., description="Clinical research question")):
@@ -32,7 +32,7 @@ async def search_evidence(q: str = Query(..., description="Clinical research que
     }
 
     async with httpx.AsyncClient(timeout=15.0) as client:
-        # 1. PubMed PMIDs search
+        # 1. PubMed PMIDs search (Free API)
         search_res = await client.get(ncbi_url, params=search_params)
         if search_res.status_code != 200:
             raise HTTPException(status_code=502, detail="PubMed search unreachable")
@@ -41,7 +41,7 @@ async def search_evidence(q: str = Query(..., description="Clinical research que
         if not id_list:
             return {"query": q, "results": [], "summary": "No clinical trials found for this topic."}
 
-        # 2. Paper summaries fetch
+        # 2. Paper summaries fetch (Free API)
         summary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
         summary_params = {
             "db": "pubmed",
@@ -62,7 +62,7 @@ async def search_evidence(q: str = Query(..., description="Clinical research que
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
             })
 
-        # 3. Cloud LLM Call (Experiential Labs)
+        # 3. Cloud LLM Call (Using 100% Free Promotional Model)
         paper_context = "\n".join([f"- Title: {p['title']} (PMID: {p['pmid']})" for p in papers])
         llm_prompt = f"Topic: {q}\nAvailable Studies:\n{paper_context}\n\nSummarize the key medical consensus in 3 concise bullet points with citations."
 
@@ -73,7 +73,8 @@ async def search_evidence(q: str = Query(..., description="Clinical research que
                     f"{EXPERIENTIAL_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {EXPERIENTIAL_API_KEY}"},
                     json={
-                        "model": "gemini-2.5-flash",
+                        # Yahan Gemini ko hatakar Free DeepSeek set kiya gaya hai
+                        "model": "deepseek-v4-flash",
                         "messages": [
                             {"role": "system", "content": "You are a clinical evidence synthesizer. Be direct and objective."},
                             {"role": "user", "content": llm_prompt}
