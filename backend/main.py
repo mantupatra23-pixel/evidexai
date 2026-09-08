@@ -18,13 +18,13 @@ except ImportError:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Standard SQLite table creation
+    Base.metadata.create_all(bind=engine)
     yield
 
 app = FastAPI(
     title="Evidex.ai Clinical Engine",
-    version="5.0.0",
+    version="5.1.0",
     lifespan=lifespan
 )
 
@@ -44,5 +44,6 @@ def health_check():
     return {
         "status": "healthy",
         "service": "Evidex.ai Enterprise Backend",
+        "database": "SQLite Native (Zero-Dependency)",
         "modules": ["auth", "search", "compare", "stream", "export"]
     }

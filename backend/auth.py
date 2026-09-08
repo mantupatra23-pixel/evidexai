@@ -6,10 +6,9 @@ import hashlib
 import base64
 import json
 import time
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy.orm import Session
 
 try:
     from config import JWT_SECRET
@@ -37,7 +36,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict) -> str:
     header = {"alg": "HS256", "typ": "JWT"}
     payload = data.copy()
-    payload["exp"] = int(time.time()) + (60 * 60 * 24 * 7) # 7 days
+    payload["exp"] = int(time.time()) + (60 * 60 * 24 * 7)
     
     b64_header = base64.urlsafe_b64encode(json.dumps(header).encode()).rstrip(b'=').decode()
     b64_payload = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b'=').decode()
@@ -67,12 +66,11 @@ def decode_access_token(token: str) -> dict | None:
     except Exception:
         return None
 
-async def get_current_user_optional(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
+def get_current_user_optional(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     if not token:
         return None
     payload = decode_access_token(token)
     if not payload or "sub" not in payload:
         return None
     email = payload["sub"]
-    result = await db.execute(select(User).where(User.email == email))
-    return result.scalars().first()
+    return db.query(User).filter(User.email == email).first()

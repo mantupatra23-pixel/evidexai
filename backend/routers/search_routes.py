@@ -3,7 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Query, HTTPException, Depends
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 import httpx
 import json
 import asyncio
@@ -30,7 +30,7 @@ async def search_evidence(
     max_year: int = Query(None),
     study_type: str = Query(None, enum=["rct", "meta", "all"]),
     user: User = Depends(get_current_user_optional),
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
     clean_q = q.strip().lower()
     refined_query = build_pubmed_clinical_query(clean_q, min_year, max_year, study_type)
@@ -84,9 +84,12 @@ async def search_evidence(
         ai_result = await execute_llm_resilient_chain(prompt, client)
 
         if user:
-            log_entry = SearchLog(user_id=user.id, query=q, summary=ai_result.get("summary"), total_scanned=len(studies))
-            db.add(log_entry)
-            await db.commit()
+            try:
+                log_entry = SearchLog(user_id=user.id, query=q, summary=ai_result.get("summary"), total_scanned=len(studies))
+                db.add(log_entry)
+                db.commit()
+            except Exception:
+                db.rollback()
 
         return {
             "query": q,
