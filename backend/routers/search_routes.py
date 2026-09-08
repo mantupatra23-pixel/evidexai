@@ -23,6 +23,41 @@ except ImportError:
 
 router = APIRouter(prefix="/api", tags=["Clinical Search Engine"])
 
+@router.get("/download-pdf")
+async def download_pdf_proxy(url: str = Query(..., description="Target PMC PDF URL"), pmid: str = Query("study")):
+    """Streams PMC PDF directly to user device as a branded Evidex download."""
+    if not url.startswith("https://www.ncbi.nlm.nih.gov/pmc/"):
+        raise HTTPException(status_code=400, detail="Invalid PDF source")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+    req = client.build_request("GET", url, headers=headers)
+    response = await client.send(req, stream=True)
+
+    if response.status_code != 200:
+        await response.aclose()
+        await client.aclose()
+        raise HTTPException(status_code=502, detail="Unable to retrieve PDF stream from archive")
+
+    async def stream_pdf():
+        try:
+            async for chunk in response.aiter_bytes():
+                yield chunk
+        finally:
+            await response.aclose()
+            await client.aclose()
+
+    filename = f"Evidex_Clinical_PMID_{pmid}.pdf"
+    response_headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "application/pdf"
+    }
+
+    return StreamingResponse(stream_pdf(), headers=response_headers, media_type="application/pdf")
+
 @router.get("/search")
 async def search_evidence(
     q: str = Query(..., description="Clinical research question"),
@@ -209,7 +244,6 @@ async def export_citations(pmids: str = Query(...), format: str = Query("apa", e
             for s in studies
         ])
     elif format == "ris":
-        # EndNote / Zotero / Mendeley format
         ris_entries = []
         for s in studies:
             ris_entries.append(

@@ -5,7 +5,7 @@ import {
   Search, ArrowRight, ExternalLink, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  Activity, ShieldCheck, FileSearch
+  Activity, ShieldCheck, FileSearch, Loader2
 } from "lucide-react";
 
 export default function Home() {
@@ -15,6 +15,9 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
+  const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
   const quickActions = [
     { label: "Compare treatments", icon: Scale },
@@ -42,7 +45,6 @@ export default function Home() {
     setData(null);
     setSelectedStudy(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
       const json = await res.json();
       setData(json);
@@ -56,7 +58,6 @@ export default function Home() {
   const copyCitation = async (pmid: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
       const res = await fetch(`${apiUrl}/api/export?pmids=${pmid}&format=apa`);
       const text = await res.text();
       await navigator.clipboard.writeText(text);
@@ -67,10 +68,31 @@ export default function Home() {
     }
   };
 
+  // Direct In-App PDF Downloader (Stays on Evidex, saves directly to user's device)
+  const downloadDirectPdf = async (pmid: string, pdfUrl: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!pdfUrl) return;
+    try {
+      setDownloadingPmid(pmid);
+      const downloadEndpoint = `${apiUrl}/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&pmid=${pmid}`;
+      
+      const a = document.createElement("a");
+      a.href = downloadEndpoint;
+      a.download = `Evidex_Clinical_PMID_${pmid}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Download Error:", err);
+    } finally {
+      setTimeout(() => setDownloadingPmid(null), 2000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
       
-      {/* 1. Backdrop Overlay For Sidebar */}
+      {/* 1. Backdrop Overlay */}
       {sidebarOpen && (
         <div 
           onClick={() => setSidebarOpen(false)}
@@ -78,7 +100,7 @@ export default function Home() {
         />
       )}
 
-      {/* 2. Slide-out Navigation Drawer */}
+      {/* 2. Slide Drawer */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 border-r border-slate-200 p-5 flex flex-col justify-between transition-transform duration-300 shadow-2xl ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -107,9 +129,9 @@ export default function Home() {
           </div>
 
           <div className="pt-4 border-t border-slate-200 space-y-2">
-            <h4 className="text-xs font-bold text-slate-900">Clinical Intelligence Engine</h4>
+            <h4 className="text-xs font-bold text-slate-900">Clinical Intelligence</h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Evidex synthesizes 35M+ PubMed trials and extracts clinical endpoints directly inside the platform.
+              Evidex provides verified clinical abstracts and direct open-access PDF downloads without external redirection.
             </p>
           </div>
         </div>
@@ -124,7 +146,7 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* 3. Sticky Top Header */}
+      {/* 3. Sticky Top Header Bar */}
       <header className="h-14 border-b border-slate-200/80 px-4 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-30">
         <div className="flex items-center gap-2.5">
           <button 
@@ -144,10 +166,10 @@ export default function Home() {
         </button>
       </header>
 
-      {/* 4. Main Viewport */}
+      {/* 4. Main Page Body */}
       <main className="flex-1 flex flex-col items-center px-4 py-8 md:py-14 max-w-3xl mx-auto w-full">
         
-        {/* Brand Hero */}
+        {/* Brand Banner */}
         <div className="text-center space-y-2 mb-6">
           <div className="inline-flex items-center gap-2 text-slate-900 font-bold text-sm">
             <span className="w-4 h-4 rounded-full bg-teal-500 text-white flex items-center justify-center text-[9px]">C</span>
@@ -158,7 +180,7 @@ export default function Home() {
           </h1>
         </div>
 
-        {/* Search Box */}
+        {/* Search Input Box */}
         <div className="w-full bg-white border border-slate-300 focus-within:border-[#0080ff] focus-within:ring-2 focus-within:ring-blue-100 rounded-2xl p-2.5 transition-all shadow-sm">
           <div className="flex items-center gap-2">
             <input
@@ -188,7 +210,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Suggestion Pills */}
+        {/* Action Pills */}
         <div className="flex flex-wrap items-center justify-center gap-2 mt-3 w-full">
           {quickActions.map((action, idx) => {
             const Icon = action.icon;
@@ -205,7 +227,7 @@ export default function Home() {
           })}
         </div>
 
-        {/* Loading Spinner */}
+        {/* Loading Indicator */}
         {loading && (
           <div className="mt-8 text-xs text-slate-600 font-medium flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-full">
             <span className="w-2 h-2 rounded-full bg-[#0080ff] animate-ping" />
@@ -213,11 +235,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results Container */}
+        {/* Search Results Display */}
         {data && (
           <div className="w-full mt-8 space-y-5 text-left">
             
-            {/* Research Consensus Meter */}
+            {/* Dynamic Consensus Agreement Meter */}
             {data.consensus && (
               <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -241,7 +263,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* AI Clinical Synthesis Box */}
+            {/* AI Synthesis Box */}
             <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#0080ff] mb-2 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> Clinical Synthesis
@@ -249,10 +271,10 @@ export default function Home() {
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.summary}</p>
             </div>
 
-            {/* Studies List (Clicking opens In-App Reader Modal) */}
+            {/* Scanned Studies Cards */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
-                Scanned Human Trials ({data.total_studies_scanned}) - Tap to read full analysis
+                Scanned Human Trials ({data.total_studies_scanned}) - Tap to read inside Evidex
               </h3>
               
               {data.studies.map((item: any) => (
@@ -293,20 +315,24 @@ export default function Home() {
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       {item.pdf_url && (
-                        <a
-                          href={item.pdf_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100"
+                        <button
+                          onClick={(e) => downloadDirectPdf(item.pmid, item.pdf_url, e)}
+                          disabled={downloadingPmid === item.pmid}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 transition-colors shadow-2xs"
+                          title="Direct PDF Download"
                         >
-                          <Download className="w-3 h-3" /> PDF
-                        </a>
+                          {downloadingPmid === item.pmid ? (
+                            <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                          ) : (
+                            <Download className="w-3 h-3" />
+                          )}
+                          <span>{downloadingPmid === item.pmid ? "Saving..." : "PDF"}</span>
+                        </button>
                       )}
                       
                       <button
                         onClick={(e) => copyCitation(item.pmid, e)}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium hover:bg-slate-200"
+                        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 text-slate-700 text-[11px] font-medium hover:bg-slate-200 transition-colors"
                       >
                         {copiedPmid === item.pmid ? <CheckCheck className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                         <span>{copiedPmid === item.pmid ? "Copied" : "Cite"}</span>
@@ -324,7 +350,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 5. Default Landing Sections */}
+        {/* 5. Default Landing Suggestions */}
         {!data && (
           <div className="w-full mt-12 space-y-10 text-left">
             <div className="border-t border-b border-slate-100 py-6 text-center space-y-2">
@@ -399,7 +425,7 @@ export default function Home() {
                   <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-semibold">
                     {selectedStudy.sample_size}
                   </span>
-                  <span className="text-[11px] text-slate-500">PMID: {selectedStudy.pmid}</span>
+                  <span className="text-[11px] text-slate-500 font-mono">PMID: {selectedStudy.pmid}</span>
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
                   {selectedStudy.title}
@@ -417,10 +443,10 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Modal Scrollable Body */}
+            {/* Modal Body */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-left text-sm">
               
-              {/* Statistical Highlights Grid */}
+              {/* Statistical Metrics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="text-[10px] uppercase font-bold text-slate-500">P-Value</div>
@@ -435,7 +461,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 col-span-2 sm:col-span-1">
-                  <div className="text-[10px] uppercase font-bold text-slate-500">Trial Design</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-500">Design</div>
                   <div className="text-xs font-semibold text-blue-700 mt-0.5">
                     {selectedStudy.badge}
                   </div>
@@ -452,7 +478,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Conflict of Interest & Funding */}
+              {/* Commercial Funding Audit */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
                 <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Commercial Funding Audit
@@ -464,17 +490,11 @@ export default function Home() {
 
             </div>
 
-            {/* Modal Bottom Footer Actions */}
+            {/* Modal Bottom Actions */}
             <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <a
-                href={selectedStudy.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-slate-500 hover:text-[#0080ff] flex items-center gap-1 font-medium"
-              >
-                <span>View NCBI Source</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              <span className="text-xs text-slate-400 font-medium">
+                Verified Medical Literature
+              </span>
 
               <div className="flex items-center gap-2">
                 <button
@@ -486,15 +506,18 @@ export default function Home() {
                 </button>
 
                 {selectedStudy.pdf_url && (
-                  <a
-                    href={selectedStudy.pdf_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs"
+                  <button
+                    onClick={() => downloadDirectPdf(selectedStudy.pmid, selectedStudy.pdf_url)}
+                    disabled={downloadingPmid === selectedStudy.pmid}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Free PDF</span>
-                  </a>
+                    {downloadingPmid === selectedStudy.pmid ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    <span>{downloadingPmid === selectedStudy.pmid ? "Downloading..." : "Direct Download"}</span>
+                  </button>
                 )}
               </div>
             </div>
