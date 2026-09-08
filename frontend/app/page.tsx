@@ -5,7 +5,7 @@ import {
   Search, ArrowRight, ExternalLink, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  Activity, ShieldCheck, FileSearch, Loader2, AlertCircle
+  ShieldCheck, FileSearch, Loader2, AlertCircle
 } from "lucide-react";
 
 export default function Home() {
@@ -70,38 +70,38 @@ export default function Home() {
     }
   };
 
-  // Safe Blob Downloader: Checks content-type and only triggers file save if real PDF
-  const downloadDirectPdf = async (pmcId: string, pmid: string, e?: React.MouseEvent) => {
+  // Direct In-App PDF Streamer with multi-gateway resolver
+  const downloadDirectPdf = async (item: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!pmcId) return;
-    setDownloadingPmid(pmid);
+    setDownloadingPmid(item.pmid);
     setDownloadError(null);
 
     try {
-      const endpoint = `${apiUrl}/api/download-pdf?pmc_id=${encodeURIComponent(pmcId)}&pmid=${pmid}`;
-      const response = await fetch(endpoint);
+      let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
+      if (item.pmc_id) endpoint += `&pmc_id=${encodeURIComponent(item.pmc_id)}`;
+      if (item.doi) endpoint += `&doi=${encodeURIComponent(item.doi)}`;
 
+      const response = await fetch(endpoint);
       if (!response.ok) {
-        throw new Error("PDF download failed");
+        throw new Error("Unable to fetch PDF from repositories");
       }
 
       const blob = await response.blob();
-      // Ensure file is actually a PDF binary (size > 1KB and correct mime)
       if (blob.size < 1000) {
-        throw new Error("File stream returned corrupted data");
+        throw new Error("Invalid PDF response");
       }
 
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = downloadUrl;
-      a.download = `Evidex_Clinical_PMID_${pmid}.pdf`;
+      a.download = `Evidex_Clinical_PMID_${item.pmid}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
     } catch (err) {
       console.error(err);
-      setDownloadError("Full-text paper is restricted to journal subscribers.");
+      setDownloadError("PDF is paywalled by the journal. Abstract available in Evidex.");
       setTimeout(() => setDownloadError(null), 4000);
     } finally {
       setDownloadingPmid(null);
@@ -111,23 +111,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
       
-      {/* Toast Notification for Download Errors */}
+      {/* Toast Error Bar */}
       {downloadError && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-rose-900 text-white text-xs px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 animate-in fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-300" />
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
           <span>{downloadError}</span>
         </div>
       )}
 
-      {/* Backdrop */}
+      {/* Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity"
-        />
+        <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />
       )}
 
-      {/* Sidebar */}
+      {/* Drawer */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 border-r border-slate-200 p-5 flex flex-col justify-between transition-transform duration-300 shadow-2xl ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -143,14 +140,11 @@ export default function Home() {
           <div className="space-y-2">
             <button 
               onClick={() => { setData(null); setQuery(""); setSelectedStudy(null); setSidebarOpen(false); }}
-              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all shadow-2xs"
+              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-2xs"
             >
               <Plus className="w-4 h-4 text-[#0080ff]" /> New Search
             </button>
-            <button 
-              onClick={() => setSidebarOpen(false)}
-              className="w-full flex items-center gap-2.5 py-2 px-3 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-200/50"
-            >
+            <button onClick={() => setSidebarOpen(false)} className="w-full flex items-center gap-2.5 py-2 px-3 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-200/50">
               <HomeIcon className="w-4 h-4 text-slate-500" /> Home
             </button>
           </div>
@@ -158,28 +152,21 @@ export default function Home() {
           <div className="pt-4 border-t border-slate-200 space-y-2">
             <h4 className="text-xs font-bold text-slate-900">Clinical Intelligence</h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Evidex indexes 35M+ PubMed trials and extracts clinical endpoints directly inside the platform.
+              Synthesizes 35M+ PubMed trials with direct open-access PDF downloads without external redirection.
             </p>
           </div>
         </div>
 
         <div className="pt-4 border-t border-slate-200 space-y-2">
-          <button className="w-full py-2 text-xs font-semibold text-slate-600 hover:text-slate-900">
-            Sign in
-          </button>
-          <button className="w-full py-2 rounded-xl bg-[#0080ff] text-white text-xs font-bold hover:bg-[#0070e0] shadow-xs">
-            Sign up
-          </button>
+          <button className="w-full py-2 text-xs font-semibold text-slate-600 hover:text-slate-900">Sign in</button>
+          <button className="w-full py-2 rounded-xl bg-[#0080ff] text-white text-xs font-bold hover:bg-[#0070e0] shadow-xs">Sign up</button>
         </div>
       </aside>
 
       {/* Header */}
       <header className="h-14 border-b border-slate-200/80 px-4 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-30">
         <div className="flex items-center gap-2.5">
-          <button 
-            onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-          >
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100">
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
@@ -187,13 +174,10 @@ export default function Home() {
             <span className="font-bold text-base text-slate-900">Evidex</span>
           </div>
         </div>
-
-        <button className="px-3.5 py-1.5 rounded-lg bg-[#0080ff] text-white text-xs font-bold hover:bg-[#0070e0] transition-all shadow-xs">
-          Sign up
-        </button>
+        <button className="px-3.5 py-1.5 rounded-lg bg-[#0080ff] text-white text-xs font-bold hover:bg-[#0070e0] shadow-xs">Sign up</button>
       </header>
 
-      {/* Main Content */}
+      {/* Main Container */}
       <main className="flex-1 flex flex-col items-center px-4 py-8 md:py-14 max-w-3xl mx-auto w-full">
         
         <div className="text-center space-y-2 mb-6">
@@ -201,12 +185,10 @@ export default function Home() {
             <span className="w-4 h-4 rounded-full bg-teal-500 text-white flex items-center justify-center text-[9px]">C</span>
             <span>Evidex</span>
           </div>
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900">
-            Research starts here
-          </h1>
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900">Research starts here</h1>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Input Box */}
         <div className="w-full bg-white border border-slate-300 focus-within:border-[#0080ff] focus-within:ring-2 focus-within:ring-blue-100 rounded-2xl p-2.5 transition-all shadow-sm">
           <div className="flex items-center gap-2">
             <input
@@ -220,7 +202,7 @@ export default function Home() {
             <button
               onClick={() => handleSearch()}
               disabled={loading || !query.trim()}
-              className="w-9 h-9 rounded-xl bg-[#0080ff] text-white flex items-center justify-center hover:bg-[#0070e0] transition-all disabled:opacity-30 shrink-0 shadow-xs"
+              className="w-9 h-9 rounded-xl bg-[#0080ff] text-white flex items-center justify-center hover:bg-[#0070e0] disabled:opacity-30 shrink-0 shadow-xs"
             >
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -236,7 +218,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Quick Action Pills */}
+        {/* Action Pills */}
         <div className="flex flex-wrap items-center justify-center gap-2 mt-3 w-full">
           {quickActions.map((action, idx) => {
             const Icon = action.icon;
@@ -244,7 +226,7 @@ export default function Home() {
               <button
                 key={idx}
                 onClick={() => handleSearch(action.label)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-medium transition-all shadow-2xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-medium shadow-2xs"
               >
                 <Icon className="w-3.5 h-3.5 text-slate-400" />
                 <span>{action.label}</span>
@@ -253,6 +235,7 @@ export default function Home() {
           })}
         </div>
 
+        {/* Loading Spinner */}
         {loading && (
           <div className="mt-8 text-xs text-slate-600 font-medium flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-full">
             <span className="w-2 h-2 rounded-full bg-[#0080ff] animate-ping" />
@@ -260,10 +243,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results */}
+        {/* Search Results */}
         {data && (
           <div className="w-full mt-8 space-y-5 text-left">
             
+            {/* Dynamic Consensus Agreement Meter */}
             {data.consensus && (
               <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -287,6 +271,7 @@ export default function Home() {
               </div>
             )}
 
+            {/* AI Clinical Synthesis */}
             <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#0080ff] mb-2 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> Clinical Synthesis
@@ -294,6 +279,7 @@ export default function Home() {
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.summary}</p>
             </div>
 
+            {/* Studies List */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                 Scanned Human Trials ({data.total_studies_scanned}) - Tap to read inside Evidex
@@ -336,12 +322,12 @@ export default function Home() {
                     <span className="truncate pr-2 font-medium">{item.source} • {item.pubdate}</span>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {item.pmc_id && (
+                      {item.is_open_access && (
                         <button
-                          onClick={(e) => downloadDirectPdf(item.pmc_id, item.pmid, e)}
+                          onClick={(e) => downloadDirectPdf(item, e)}
                           disabled={downloadingPmid === item.pmid}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 transition-colors shadow-2xs"
-                          title="Download Free PDF"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
+                          title="Direct In-App PDF Download"
                         >
                           {downloadingPmid === item.pmid ? (
                             <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
@@ -354,7 +340,7 @@ export default function Home() {
                       
                       <button
                         onClick={(e) => copyCitation(item.pmid, e)}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 text-slate-700 text-[11px] font-medium hover:bg-slate-200 transition-colors"
+                        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 text-slate-700 text-[11px] font-medium hover:bg-slate-200"
                       >
                         {copiedPmid === item.pmid ? <CheckCheck className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                         <span>{copiedPmid === item.pmid ? "Copied" : "Cite"}</span>
@@ -372,7 +358,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Default State */}
+        {/* Landing Sections */}
         {!data && (
           <div className="w-full mt-12 space-y-10 text-left">
             <div className="border-t border-b border-slate-100 py-6 text-center space-y-2">
@@ -432,7 +418,7 @@ export default function Home() {
 
       </main>
 
-      {/* In-App Reader Modal */}
+      {/* In-App Clinical Reader Modal */}
       {selectedStudy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
@@ -506,9 +492,7 @@ export default function Home() {
             </div>
 
             <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <span className="text-xs text-slate-400 font-medium">
-                Verified Medical Literature
-              </span>
+              <span className="text-xs text-slate-400 font-medium">Verified Medical Literature</span>
 
               <div className="flex items-center gap-2">
                 <button
@@ -519,9 +503,9 @@ export default function Home() {
                   <span>{copiedPmid === selectedStudy.pmid ? "Copied" : "Copy Citation"}</span>
                 </button>
 
-                {selectedStudy.pmc_id && (
+                {selectedStudy.is_open_access && (
                   <button
-                    onClick={() => downloadDirectPdf(selectedStudy.pmc_id, selectedStudy.pmid)}
+                    onClick={() => downloadDirectPdf(selectedStudy)}
                     disabled={downloadingPmid === selectedStudy.pmid}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >

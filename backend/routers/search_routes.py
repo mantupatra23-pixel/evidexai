@@ -23,54 +23,109 @@ except ImportError:
 
 router = APIRouter(prefix="/api", tags=["Clinical Search Engine"])
 
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,application/pdf,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1"
+}
+
 @router.get("/download-pdf")
-async def download_pdf_proxy(pmc_id: str = Query(..., description="PMC Identifier (e.g. PMC9339771)"), pmid: str = Query("study")):
-    """Streams verified binary PDF without cloud IP blocking."""
-    clean_pmc = pmc_id.strip()
-    if not clean_pmc.upper().startswith("PMC"):
+async def download_pdf_proxy(
+    pmid: str = Query(..., description="PubMed ID"),
+    pmc_id: str = Query(None, description="PMC ID"),
+    doi: str = Query(None, description="DOI")
+):
+    """4-Tier Resilient Binary PDF Gateway: PMC Direct -> Europe PMC -> Unpaywall -> Semantic Scholar"""
+    clean_pmc = pmc_id.strip() if pmc_id else ""
+    if clean_pmc and not clean_pmc.upper().startswith("PMC"):
         clean_pmc = f"PMC{clean_pmc}"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/pdf,*/*"
-    }
+    async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as client:
+        # Tier 1: Modern PMC Domain with browser fingerprint
+        if clean_pmc:
+            try:
+                target_url = f"https://pmc.ncbi.nlm.nih.gov/articles/{clean_pmc}/pdf/"
+                res = await client.get(target_url, headers=BROWSER_HEADERS)
+                if res.status_code == 200 and (b"%PDF" in res.content[:1024]):
+                    return Response(
+                        content=res.content,
+                        media_type="application/pdf",
+                        headers={
+                            "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                            "Content-Type": "application/pdf"
+                        }
+                    )
+            except Exception:
+                pass
 
-    # Primary Source: Europe PMC Open Gateway
-    europe_pmc_url = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={clean_pmc}&blobtype=pdf"
-    ncbi_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{clean_pmc}/pdf/"
+        # Tier 2: Europe PMC Direct Binary Gateway
+        if clean_pmc:
+            try:
+                epmc_url = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={clean_pmc}&blobtype=pdf"
+                res = await client.get(epmc_url, headers=BROWSER_HEADERS)
+                if res.status_code == 200 and (b"%PDF" in res.content[:1024]):
+                    return Response(
+                        content=res.content,
+                        media_type="application/pdf",
+                        headers={
+                            "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                            "Content-Type": "application/pdf"
+                        }
+                    )
+            except Exception:
+                pass
 
-    async with httpx.AsyncClient(timeout=35.0, follow_redirects=True) as client:
-        # 1. Try Europe PMC
+        # Tier 3: Unpaywall Open Access Resolver via DOI
+        if doi:
+            try:
+                unpaywall_api = f"https://api.unpaywall.org/v2/{doi}?email=clinical@evidex.ai"
+                u_res = await client.get(unpaywall_api, timeout=8.0)
+                if u_res.status_code == 200:
+                    oa_info = u_res.json()
+                    best_pdf_url = oa_info.get("best_oa_location", {}).get("url_for_pdf")
+                    if best_pdf_url:
+                        pdf_stream_res = await client.get(best_pdf_url, headers=BROWSER_HEADERS)
+                        if pdf_stream_res.status_code == 200 and (b"%PDF" in pdf_stream_res.content[:1024]):
+                            return Response(
+                                content=pdf_stream_res.content,
+                                media_type="application/pdf",
+                                headers={
+                                    "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                                    "Content-Type": "application/pdf"
+                                }
+                            )
+            except Exception:
+                pass
+
+        # Tier 4: Semantic Scholar Open Access Gateway
         try:
-            res = await client.get(europe_pmc_url, headers=headers)
-            if res.status_code == 200 and res.content.startswith(b"%PDF"):
-                return Response(
-                    content=res.content,
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                        "Content-Type": "application/pdf"
-                    }
-                )
+            s2_url = f"https://api.semanticscholar.org/graph/v1/paper/PMID:{pmid}?fields=openAccessPdf"
+            s2_res = await client.get(s2_url, timeout=8.0)
+            if s2_res.status_code == 200:
+                pdf_link = s2_res.json().get("openAccessPdf", {}).get("url")
+                if pdf_link:
+                    pdf_res = await client.get(pdf_link, headers=BROWSER_HEADERS)
+                    if pdf_res.status_code == 200 and (b"%PDF" in pdf_res.content[:1024]):
+                        return Response(
+                            content=pdf_res.content,
+                            media_type="application/pdf",
+                            headers={
+                                "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                                "Content-Type": "application/pdf"
+                            }
+                        )
         except Exception:
             pass
 
-        # 2. Try NCBI Fallback
-        try:
-            res = await client.get(ncbi_url, headers=headers)
-            if res.status_code == 200 and res.content.startswith(b"%PDF"):
-                return Response(
-                    content=res.content,
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                        "Content-Type": "application/pdf"
-                    }
-                )
-        except Exception:
-            pass
-
-    raise HTTPException(status_code=404, detail="Direct PDF stream unavailable for this specific trial repository.")
+    raise HTTPException(status_code=404, detail="Open access PDF not found in medical repositories.")
 
 @router.get("/search")
 async def search_evidence(

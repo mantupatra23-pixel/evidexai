@@ -79,7 +79,7 @@ def parse_pubmed_xml(xml_text: str):
             title = "".join(title_node.itertext()).strip() if title_node is not None else "Clinical Investigation"
 
             abstract_texts = article.findall(".//Abstract/AbstractText")
-            abstract = " ".join(["".join(ab.itertext()).strip() for ab in abstract_texts]) if abstract_texts else "Abstract available via PubMed link."
+            abstract = " ".join(["".join(ab.itertext()).strip() for ab in abstract_texts]) if abstract_texts else "Abstract available via PubMed."
 
             pub_types = [pt.text for pt in article.findall(".//PublicationTypeList/PublicationType") if pt.text]
             badge = "Clinical Study"
@@ -99,13 +99,16 @@ def parse_pubmed_xml(xml_text: str):
             year_node = article.find(".//JournalIssue/PubDate/Year") or article.find(".//DateCompleted/Year")
             pubdate = year_node.text if year_node is not None else "Recent"
 
-            # PMC ID detection
+            # PMC ID and DOI Extractors
             pmc_id = None
+            doi = None
             for article_id in article.findall(".//ArticleIdList/ArticleId"):
-                if article_id.get("IdType") == "pmc":
+                id_type = article_id.get("IdType")
+                if id_type == "pmc":
                     raw_pmc = article_id.text.strip()
                     pmc_id = raw_pmc if raw_pmc.upper().startswith("PMC") else f"PMC{raw_pmc}"
-                    break
+                elif id_type == "doi":
+                    doi = article_id.text.strip()
 
             authors = []
             for author in article.findall(".//AuthorList/Author"):
@@ -123,6 +126,7 @@ def parse_pubmed_xml(xml_text: str):
             studies.append({
                 "pmid": pmid,
                 "pmc_id": pmc_id,
+                "doi": doi,
                 "title": title,
                 "authors": author_str,
                 "abstract": abstract[:1200],
@@ -131,7 +135,7 @@ def parse_pubmed_xml(xml_text: str):
                 "source": source,
                 "pubdate": pubdate,
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-                "is_open_access": bool(pmc_id),
+                "is_open_access": bool(pmc_id or doi),
                 "statistics": extract_quantitative_stats(abstract),
                 "funding_audit": {
                     "bias_risk": "High" if len(sponsors) >= 2 else ("Moderate" if len(sponsors) == 1 else "Low (Independent)"),
