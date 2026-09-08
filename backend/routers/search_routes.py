@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, HTTPException, Depends, Response
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.orm import Session
 import httpx
@@ -24,39 +24,53 @@ except ImportError:
 router = APIRouter(prefix="/api", tags=["Clinical Search Engine"])
 
 @router.get("/download-pdf")
-async def download_pdf_proxy(url: str = Query(..., description="Target PMC PDF URL"), pmid: str = Query("study")):
-    """Streams PMC PDF directly to user device as a branded Evidex download."""
-    if not url.startswith("https://www.ncbi.nlm.nih.gov/pmc/"):
-        raise HTTPException(status_code=400, detail="Invalid PDF source")
+async def download_pdf_proxy(pmc_id: str = Query(..., description="PMC Identifier (e.g. PMC9339771)"), pmid: str = Query("study")):
+    """Streams verified binary PDF without cloud IP blocking."""
+    clean_pmc = pmc_id.strip()
+    if not clean_pmc.upper().startswith("PMC"):
+        clean_pmc = f"PMC{clean_pmc}"
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/pdf,*/*"
     }
 
-    client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
-    req = client.build_request("GET", url, headers=headers)
-    response = await client.send(req, stream=True)
+    # Primary Source: Europe PMC Open Gateway
+    europe_pmc_url = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={clean_pmc}&blobtype=pdf"
+    ncbi_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{clean_pmc}/pdf/"
 
-    if response.status_code != 200:
-        await response.aclose()
-        await client.aclose()
-        raise HTTPException(status_code=502, detail="Unable to retrieve PDF stream from archive")
-
-    async def stream_pdf():
+    async with httpx.AsyncClient(timeout=35.0, follow_redirects=True) as client:
+        # 1. Try Europe PMC
         try:
-            async for chunk in response.aiter_bytes():
-                yield chunk
-        finally:
-            await response.aclose()
-            await client.aclose()
+            res = await client.get(europe_pmc_url, headers=headers)
+            if res.status_code == 200 and res.content.startswith(b"%PDF"):
+                return Response(
+                    content=res.content,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                        "Content-Type": "application/pdf"
+                    }
+                )
+        except Exception:
+            pass
 
-    filename = f"Evidex_Clinical_PMID_{pmid}.pdf"
-    response_headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
-        "Content-Type": "application/pdf"
-    }
+        # 2. Try NCBI Fallback
+        try:
+            res = await client.get(ncbi_url, headers=headers)
+            if res.status_code == 200 and res.content.startswith(b"%PDF"):
+                return Response(
+                    content=res.content,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                        "Content-Type": "application/pdf"
+                    }
+                )
+        except Exception:
+            pass
 
-    return StreamingResponse(stream_pdf(), headers=response_headers, media_type="application/pdf")
+    raise HTTPException(status_code=404, detail="Direct PDF stream unavailable for this specific trial repository.")
 
 @router.get("/search")
 async def search_evidence(

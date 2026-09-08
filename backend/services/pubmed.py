@@ -45,46 +45,23 @@ def extract_quantitative_stats(abstract_text: str) -> dict:
         "p_value": None,
         "hazard_ratio": None,
         "odds_ratio": None,
-        "confidence_interval": None,
-        "forest_plot_data": None
+        "confidence_interval": None
     }
-    # P-value
     p_match = re.search(r"\b[pP]\s*([<=<]|value\s*[<=<])\s*([0-9]?\.[0-9]+|\b0\b)", abstract_text)
     if p_match:
         stats["p_value"] = f"p {p_match.group(1)} {p_match.group(2)}".replace("value", "").strip()
 
-    # Hazard Ratio
     hr_match = re.search(r"\b(HR|hazard ratio)\s*[:=]?\s*([0-9]+\.[0-9]+)", abstract_text, re.IGNORECASE)
     if hr_match:
         stats["hazard_ratio"] = f"HR {hr_match.group(2)}"
 
-    # Odds Ratio
     or_match = re.search(r"\b(OR|odds ratio)\s*[:=]?\s*([0-9]+\.[0-9]+)", abstract_text, re.IGNORECASE)
     if or_match:
         stats["odds_ratio"] = f"OR {or_match.group(2)}"
 
-    # 95% Confidence Interval & Numeric Forest Plot Bounds
     ci_match = re.search(r"\b(95%\s*CI|confidence interval)\s*[:=,]?\s*\[?([0-9]+\.[0-9]+)\s*(?:to|-|–)\s*([0-9]+\.[0-9]+)\]?", abstract_text, re.IGNORECASE)
     if ci_match:
-        low = float(ci_match.group(2))
-        high = float(ci_match.group(3))
-        stats["confidence_interval"] = f"95% CI [{low}, {high}]"
-        
-        # Estimate computation for plot
-        estimate = None
-        if hr_match:
-            estimate = float(hr_match.group(2))
-        elif or_match:
-            estimate = float(or_match.group(2))
-        else:
-            estimate = round((low + high) / 2, 2)
-
-        stats["forest_plot_data"] = {
-            "estimate": estimate,
-            "ci_lower": low,
-            "ci_upper": high,
-            "favors": "Treatment" if estimate < 1.0 else "Control"
-        }
+        stats["confidence_interval"] = f"95% CI [{ci_match.group(2)}, {ci_match.group(3)}]"
 
     return stats
 
@@ -104,7 +81,6 @@ def parse_pubmed_xml(xml_text: str):
             abstract_texts = article.findall(".//Abstract/AbstractText")
             abstract = " ".join(["".join(ab.itertext()).strip() for ab in abstract_texts]) if abstract_texts else "Abstract available via PubMed link."
 
-            # Publication Types
             pub_types = [pt.text for pt in article.findall(".//PublicationTypeList/PublicationType") if pt.text]
             badge = "Clinical Study"
             if any("Randomized Controlled Trial" in pt for pt in pub_types):
@@ -123,16 +99,14 @@ def parse_pubmed_xml(xml_text: str):
             year_node = article.find(".//JournalIssue/PubDate/Year") or article.find(".//DateCompleted/Year")
             pubdate = year_node.text if year_node is not None else "Recent"
 
-            # PMC Full-Text Direct PDF Detection
+            # PMC ID detection
             pmc_id = None
             for article_id in article.findall(".//ArticleIdList/ArticleId"):
                 if article_id.get("IdType") == "pmc":
-                    pmc_id = article_id.text
+                    raw_pmc = article_id.text.strip()
+                    pmc_id = raw_pmc if raw_pmc.upper().startswith("PMC") else f"PMC{raw_pmc}"
                     break
-            
-            pdf_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/pdf/" if pmc_id else None
 
-            # Authors List
             authors = []
             for author in article.findall(".//AuthorList/Author"):
                 last = author.find("LastName")
@@ -140,7 +114,6 @@ def parse_pubmed_xml(xml_text: str):
                     authors.append(last.text)
             author_str = ", ".join(authors[:3]) + (" et al." if len(authors) > 3 else "") if authors else "Investigative Team"
 
-            # Pharma COI
             coi_node = article.find(".//CoiStatement")
             coi_text = "".join(coi_node.itertext()).strip() if coi_node is not None else ""
             grants = [g.find("Agency").text for g in article.findall(".//GrantList/Grant") if g.find("Agency") is not None and g.find("Agency").text]
@@ -149,6 +122,7 @@ def parse_pubmed_xml(xml_text: str):
 
             studies.append({
                 "pmid": pmid,
+                "pmc_id": pmc_id,
                 "title": title,
                 "authors": author_str,
                 "abstract": abstract[:1200],
@@ -157,8 +131,7 @@ def parse_pubmed_xml(xml_text: str):
                 "source": source,
                 "pubdate": pubdate,
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-                "pdf_url": pdf_url,
-                "is_open_access": bool(pdf_url),
+                "is_open_access": bool(pmc_id),
                 "statistics": extract_quantitative_stats(abstract),
                 "funding_audit": {
                     "bias_risk": "High" if len(sponsors) >= 2 else ("Moderate" if len(sponsors) == 1 else "Low (Independent)"),

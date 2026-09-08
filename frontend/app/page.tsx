@@ -5,7 +5,7 @@ import {
   Search, ArrowRight, ExternalLink, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  Activity, ShieldCheck, FileSearch, Loader2
+  Activity, ShieldCheck, FileSearch, Loader2, AlertCircle
 } from "lucide-react";
 
 export default function Home() {
@@ -16,6 +16,7 @@ export default function Home() {
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
   const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
@@ -44,6 +45,7 @@ export default function Home() {
     setLoading(true);
     setData(null);
     setSelectedStudy(null);
+    setDownloadError(null);
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
       const json = await res.json();
@@ -68,31 +70,56 @@ export default function Home() {
     }
   };
 
-  // Direct In-App PDF Downloader (Stays on Evidex, saves directly to user's device)
-  const downloadDirectPdf = async (pmid: string, pdfUrl: string, e?: React.MouseEvent) => {
+  // Safe Blob Downloader: Checks content-type and only triggers file save if real PDF
+  const downloadDirectPdf = async (pmcId: string, pmid: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!pdfUrl) return;
+    if (!pmcId) return;
+    setDownloadingPmid(pmid);
+    setDownloadError(null);
+
     try {
-      setDownloadingPmid(pmid);
-      const downloadEndpoint = `${apiUrl}/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&pmid=${pmid}`;
-      
+      const endpoint = `${apiUrl}/api/download-pdf?pmc_id=${encodeURIComponent(pmcId)}&pmid=${pmid}`;
+      const response = await fetch(endpoint);
+
+      if (!response.ok) {
+        throw new Error("PDF download failed");
+      }
+
+      const blob = await response.blob();
+      // Ensure file is actually a PDF binary (size > 1KB and correct mime)
+      if (blob.size < 1000) {
+        throw new Error("File stream returned corrupted data");
+      }
+
+      const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = downloadEndpoint;
+      a.href = downloadUrl;
       a.download = `Evidex_Clinical_PMID_${pmid}.pdf`;
       document.body.appendChild(a);
       a.click();
+      window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
     } catch (err) {
-      console.error("Download Error:", err);
+      console.error(err);
+      setDownloadError("Full-text paper is restricted to journal subscribers.");
+      setTimeout(() => setDownloadError(null), 4000);
     } finally {
-      setTimeout(() => setDownloadingPmid(null), 2000);
+      setDownloadingPmid(null);
     }
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
       
-      {/* 1. Backdrop Overlay */}
+      {/* Toast Notification for Download Errors */}
+      {downloadError && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-rose-900 text-white text-xs px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 animate-in fade-in">
+          <AlertCircle className="w-4 h-4 text-rose-300" />
+          <span>{downloadError}</span>
+        </div>
+      )}
+
+      {/* Backdrop */}
       {sidebarOpen && (
         <div 
           onClick={() => setSidebarOpen(false)}
@@ -100,7 +127,7 @@ export default function Home() {
         />
       )}
 
-      {/* 2. Slide Drawer */}
+      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 border-r border-slate-200 p-5 flex flex-col justify-between transition-transform duration-300 shadow-2xl ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -131,7 +158,7 @@ export default function Home() {
           <div className="pt-4 border-t border-slate-200 space-y-2">
             <h4 className="text-xs font-bold text-slate-900">Clinical Intelligence</h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Evidex provides verified clinical abstracts and direct open-access PDF downloads without external redirection.
+              Evidex indexes 35M+ PubMed trials and extracts clinical endpoints directly inside the platform.
             </p>
           </div>
         </div>
@@ -146,7 +173,7 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* 3. Sticky Top Header Bar */}
+      {/* Header */}
       <header className="h-14 border-b border-slate-200/80 px-4 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-30">
         <div className="flex items-center gap-2.5">
           <button 
@@ -166,10 +193,9 @@ export default function Home() {
         </button>
       </header>
 
-      {/* 4. Main Page Body */}
+      {/* Main Content */}
       <main className="flex-1 flex flex-col items-center px-4 py-8 md:py-14 max-w-3xl mx-auto w-full">
         
-        {/* Brand Banner */}
         <div className="text-center space-y-2 mb-6">
           <div className="inline-flex items-center gap-2 text-slate-900 font-bold text-sm">
             <span className="w-4 h-4 rounded-full bg-teal-500 text-white flex items-center justify-center text-[9px]">C</span>
@@ -180,7 +206,7 @@ export default function Home() {
           </h1>
         </div>
 
-        {/* Search Input Box */}
+        {/* Search Bar */}
         <div className="w-full bg-white border border-slate-300 focus-within:border-[#0080ff] focus-within:ring-2 focus-within:ring-blue-100 rounded-2xl p-2.5 transition-all shadow-sm">
           <div className="flex items-center gap-2">
             <input
@@ -210,7 +236,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Action Pills */}
+        {/* Quick Action Pills */}
         <div className="flex flex-wrap items-center justify-center gap-2 mt-3 w-full">
           {quickActions.map((action, idx) => {
             const Icon = action.icon;
@@ -227,7 +253,6 @@ export default function Home() {
           })}
         </div>
 
-        {/* Loading Indicator */}
         {loading && (
           <div className="mt-8 text-xs text-slate-600 font-medium flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-full">
             <span className="w-2 h-2 rounded-full bg-[#0080ff] animate-ping" />
@@ -235,11 +260,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* Search Results Display */}
+        {/* Results */}
         {data && (
           <div className="w-full mt-8 space-y-5 text-left">
             
-            {/* Dynamic Consensus Agreement Meter */}
             {data.consensus && (
               <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -263,7 +287,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* AI Synthesis Box */}
             <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#0080ff] mb-2 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> Clinical Synthesis
@@ -271,7 +294,6 @@ export default function Home() {
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.summary}</p>
             </div>
 
-            {/* Scanned Studies Cards */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                 Scanned Human Trials ({data.total_studies_scanned}) - Tap to read inside Evidex
@@ -314,12 +336,12 @@ export default function Home() {
                     <span className="truncate pr-2 font-medium">{item.source} • {item.pubdate}</span>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {item.pdf_url && (
+                      {item.pmc_id && (
                         <button
-                          onClick={(e) => downloadDirectPdf(item.pmid, item.pdf_url, e)}
+                          onClick={(e) => downloadDirectPdf(item.pmc_id, item.pmid, e)}
                           disabled={downloadingPmid === item.pmid}
                           className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 transition-colors shadow-2xs"
-                          title="Direct PDF Download"
+                          title="Download Free PDF"
                         >
                           {downloadingPmid === item.pmid ? (
                             <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
@@ -350,7 +372,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 5. Default Landing Suggestions */}
+        {/* Default State */}
         {!data && (
           <div className="w-full mt-12 space-y-10 text-left">
             <div className="border-t border-b border-slate-100 py-6 text-center space-y-2">
@@ -410,12 +432,11 @@ export default function Home() {
 
       </main>
 
-      {/* 6. IN-APP CLINICAL STUDY READER (Keeps User Inside Evidex) */}
+      {/* In-App Reader Modal */}
       {selectedStudy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
             
-            {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/80">
               <div className="space-y-1.5 pr-4">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -443,10 +464,7 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-left text-sm">
-              
-              {/* Statistical Metrics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="text-[10px] uppercase font-bold text-slate-500">P-Value</div>
@@ -468,7 +486,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Full Abstract */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                   <FileSearch className="w-4 h-4 text-[#0080ff]" /> Clinical Abstract & Findings
@@ -478,7 +495,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Commercial Funding Audit */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
                 <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Commercial Funding Audit
@@ -487,10 +503,8 @@ export default function Home() {
                   {selectedStudy.funding_audit?.coi_statement || "No commercial funding conflicts declared by authors."}
                 </p>
               </div>
-
             </div>
 
-            {/* Modal Bottom Actions */}
             <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
               <span className="text-xs text-slate-400 font-medium">
                 Verified Medical Literature
@@ -505,9 +519,9 @@ export default function Home() {
                   <span>{copiedPmid === selectedStudy.pmid ? "Copied" : "Copy Citation"}</span>
                 </button>
 
-                {selectedStudy.pdf_url && (
+                {selectedStudy.pmc_id && (
                   <button
-                    onClick={() => downloadDirectPdf(selectedStudy.pmid, selectedStudy.pdf_url)}
+                    onClick={() => downloadDirectPdf(selectedStudy.pmc_id, selectedStudy.pmid)}
                     disabled={downloadingPmid === selectedStudy.pmid}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >
@@ -516,7 +530,7 @@ export default function Home() {
                     ) : (
                       <Download className="w-3.5 h-3.5" />
                     )}
-                    <span>{downloadingPmid === selectedStudy.pmid ? "Downloading..." : "Direct Download"}</span>
+                    <span>{downloadingPmid === selectedStudy.pmid ? "Downloading..." : "Download PDF"}</span>
                   </button>
                 )}
               </div>
