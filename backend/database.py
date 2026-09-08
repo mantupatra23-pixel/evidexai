@@ -9,6 +9,10 @@ try:
 except ImportError:
     from backend.config import DATABASE_URL
 
+# Fallback check
+if not DATABASE_URL or DATABASE_URL.startswith("http"):
+    DATABASE_URL = "sqlite:///./evidex.db"
+
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
