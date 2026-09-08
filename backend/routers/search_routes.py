@@ -21,7 +21,7 @@ except ImportError:
     from backend.services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
     from backend.services.llm import execute_llm_resilient_chain
 
-router = APIRouter(prefix="/api", tags=["Clinical Engine"])
+router = APIRouter(prefix="/api", tags=["Clinical Search Engine"])
 
 @router.get("/search")
 async def search_evidence(
@@ -29,6 +29,7 @@ async def search_evidence(
     min_year: int = Query(None),
     max_year: int = Query(None),
     study_type: str = Query(None, enum=["rct", "meta", "all"]),
+    sort_by: str = Query("relevance", enum=["relevance", "pub_date"]),
     user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
@@ -38,7 +39,13 @@ async def search_evidence(
     async with httpx.AsyncClient(timeout=16.0) as client:
         search_res = await client.get(
             "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
-            params={"db": "pubmed", "term": refined_query, "retmode": "json", "retmax": "5", "sort": "relevance"}
+            params={
+                "db": "pubmed", 
+                "term": refined_query, 
+                "retmode": "json", 
+                "retmax": "6", 
+                "sort": sort_by
+            }
         )
         if search_res.status_code != 200:
             raise HTTPException(status_code=502, detail="PubMed gateway unreachable")
@@ -133,10 +140,11 @@ async def compare_treatments(
         study_context = "\n".join([f"- Title: {s['title']} (PMID: {s['pmid']})\n  Abstract: {s['abstract'][:300]}" for s in studies])
         compare_prompt = (
             f"Compare {treatment_a} vs {treatment_b} in {condition}:\n{study_context}\n\n"
-            "Return valid JSON: {\"primary_winner\": \"...\", \"comparison_matrix\": ["
+            "Return valid JSON schema: {\"primary_winner\": \"...\", \"comparison_matrix\": ["
             "{\"metric\": \"Primary Efficacy\", \"treatment_a\": \"...\", \"treatment_b\": \"...\"},"
-            "{\"metric\": \"Safety & Tolerability\", \"treatment_a\": \"...\", \"treatment_b\": \"...\"}"
-            "], \"verdict\": \"Summary with citations.\"}"
+            "{\"metric\": \"Safety & Tolerability\", \"treatment_a\": \"...\", \"treatment_b\": \"...\"},"
+            "{\"metric\": \"Long-Term Clinical Outcomes\", \"treatment_a\": \"...\", \"treatment_b\": \"...\"}"
+            "], \"verdict\": \"Clinical takeaway with PMIDs.\"}"
         )
         comparison_data = await execute_llm_resilient_chain(compare_prompt, client)
 
@@ -154,8 +162,8 @@ async def search_evidence_stream(q: str = Query(...)):
     refined_query = build_pubmed_clinical_query(q)
 
     async def event_generator():
-        yield f"event: status\ndata: {json.dumps({'message': 'Querying PubMed for human trials...'})}\n\n"
-        await asyncio.sleep(0.05)
+        yield f"event: status\ndata: {json.dumps({'message': 'Scanning 35M+ PubMed human trials...'})}\n\n"
+        await asyncio.sleep(0.04)
 
         async with httpx.AsyncClient(timeout=16.0) as client:
             search_res = await client.get(
@@ -189,7 +197,7 @@ async def search_evidence_stream(q: str = Query(...)):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.get("/export", response_class=PlainTextResponse)
-async def export_citations(pmids: str = Query(...), format: str = Query("apa", enum=["apa", "bibtex"])):
+async def export_citations(pmids: str = Query(...), format: str = Query("apa", enum=["apa", "bibtex", "ris"])):
     id_list = [p.strip() for p in pmids.split(",") if p.strip()]
     async with httpx.AsyncClient(timeout=15.0) as client:
         res = await client.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi", params={"db": "pubmed", "id": ",".join(id_list), "retmode": "xml"})
@@ -197,7 +205,16 @@ async def export_citations(pmids: str = Query(...), format: str = Query("apa", e
 
     if format == "bibtex":
         return "\n\n".join([
-            f"@article{{pmid{s['pmid']},\n  title = {{{s['title']}}},\n  journal = {{{s['source']}}},\n  year = {{{s['pubdate']}}},\n  note = {{PMID: {s['pmid']}}},\n  url = {{{s['url']}}}\n}}"
+            f"@article{{pmid{s['pmid']},\n  title = {{{s['title']}}},\n  author = {{{s['authors']}}},\n  journal = {{{s['source']}}},\n  year = {{{s['pubdate']}}},\n  note = {{PMID: {s['pmid']}}},\n  url = {{{s['url']}}}\n}}"
             for s in studies
         ])
-    return "\n\n".join([f"{s['title']} ({s['pubdate']}). {s['source']}. https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/" for s in studies])
+    elif format == "ris":
+        # EndNote / Zotero / Mendeley format
+        ris_entries = []
+        for s in studies:
+            ris_entries.append(
+                f"TY  - JOUR\nTI  - {s['title']}\nAU  - {s['authors']}\nJO  - {s['source']}\nPY  - {s['pubdate']}\nUR  - {s['url']}\nAN  - {s['pmid']}\nER  -"
+            )
+        return "\n\n".join(ris_entries)
+
+    return "\n\n".join([f"{s['authors']} ({s['pubdate']}). {s['title']}. {s['source']}. https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/" for s in studies])

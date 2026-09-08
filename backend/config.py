@@ -6,7 +6,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./evidex.db")
-JWT_SECRET = os.getenv("JWT_SECRET", "evidex_clinical_jwt_secret_key_2026")
+JWT_SECRET = os.getenv("JWT_SECRET", "evidex_clinical_jwt_secret_key_2026_enterprise")
 
 EXPERIENTIAL_FREE_MODELS = [
     "deepseek-v4-flash",

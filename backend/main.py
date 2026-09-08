@@ -11,20 +11,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 try:
     from database import engine, Base
-    from routers import auth_routes, search_routes
+    from routers import auth_routes, search_routes, user_routes, suggest_routes
 except ImportError:
     from backend.database import engine, Base
-    from backend.routers import auth_routes, search_routes
+    from backend.routers import auth_routes, search_routes, user_routes, suggest_routes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Standard SQLite table creation
     Base.metadata.create_all(bind=engine)
     yield
 
 app = FastAPI(
-    title="Evidex.ai Clinical Engine",
-    version="5.1.0",
+    title="Evidex.ai Clinical Enterprise Engine",
+    version="6.0.0",
     lifespan=lifespan
 )
 
@@ -36,14 +35,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount Routers
 app.include_router(auth_routes.router)
 app.include_router(search_routes.router)
+app.include_router(user_routes.router)
+app.include_router(suggest_routes.router)
 
 @app.get("/")
 def health_check():
     return {
         "status": "healthy",
-        "service": "Evidex.ai Enterprise Backend",
-        "database": "SQLite Native (Zero-Dependency)",
-        "modules": ["auth", "search", "compare", "stream", "export"]
+        "service": "Evidex.ai Clinical Engine",
+        "version": "6.0.0",
+        "features": [
+            "Clinical Search & MeSH Expansion",
+            "Direct PMC PDF Link Extraction",
+            "Quantitative Statistics & Forest Plot Data",
+            "Pharma COI Conflict Audit",
+            "Head-to-Head Comparison (/api/compare)",
+            "Server-Sent Events Streaming (/api/search/stream)",
+            "User History & Saved Library Bookmarks",
+            "Citations Export (BibTeX, APA, RIS)",
+            "Medical Term Autocomplete (/api/suggest)"
+        ]
     }

@@ -14,9 +14,12 @@ SYNONYM_MAP = {
     "high blood pressure": "hypertension",
     "sugar": "type 2 diabetes mellitus",
     "heart attack": "myocardial infarction",
+    "stroke": "cerebrovascular accident",
     "kidney disease": "chronic kidney disease",
+    "kidney failure": "renal impairment OR renal failure",
     "weight loss": "obesity management OR weight reduction",
-    "blood clot": "thrombosis OR thromboembolism"
+    "blood clot": "thrombosis OR thromboembolism",
+    "cholesterol": "hyperlipidemia OR dyslipidemia"
 }
 
 def build_pubmed_clinical_query(user_query: str, min_year: int = None, max_year: int = None, study_type: str = None) -> str:
@@ -38,18 +41,50 @@ def build_pubmed_clinical_query(user_query: str, min_year: int = None, max_year:
     return query
 
 def extract_quantitative_stats(abstract_text: str) -> dict:
-    stats = {}
+    stats = {
+        "p_value": None,
+        "hazard_ratio": None,
+        "odds_ratio": None,
+        "confidence_interval": None,
+        "forest_plot_data": None
+    }
+    # P-value
     p_match = re.search(r"\b[pP]\s*([<=<]|value\s*[<=<])\s*([0-9]?\.[0-9]+|\b0\b)", abstract_text)
     if p_match:
         stats["p_value"] = f"p {p_match.group(1)} {p_match.group(2)}".replace("value", "").strip()
 
+    # Hazard Ratio
     hr_match = re.search(r"\b(HR|hazard ratio)\s*[:=]?\s*([0-9]+\.[0-9]+)", abstract_text, re.IGNORECASE)
     if hr_match:
         stats["hazard_ratio"] = f"HR {hr_match.group(2)}"
 
+    # Odds Ratio
+    or_match = re.search(r"\b(OR|odds ratio)\s*[:=]?\s*([0-9]+\.[0-9]+)", abstract_text, re.IGNORECASE)
+    if or_match:
+        stats["odds_ratio"] = f"OR {or_match.group(2)}"
+
+    # 95% Confidence Interval & Numeric Forest Plot Bounds
     ci_match = re.search(r"\b(95%\s*CI|confidence interval)\s*[:=,]?\s*\[?([0-9]+\.[0-9]+)\s*(?:to|-|–)\s*([0-9]+\.[0-9]+)\]?", abstract_text, re.IGNORECASE)
     if ci_match:
-        stats["confidence_interval"] = f"95% CI [{ci_match.group(2)}, {ci_match.group(3)}]"
+        low = float(ci_match.group(2))
+        high = float(ci_match.group(3))
+        stats["confidence_interval"] = f"95% CI [{low}, {high}]"
+        
+        # Estimate computation for plot
+        estimate = None
+        if hr_match:
+            estimate = float(hr_match.group(2))
+        elif or_match:
+            estimate = float(or_match.group(2))
+        else:
+            estimate = round((low + high) / 2, 2)
+
+        stats["forest_plot_data"] = {
+            "estimate": estimate,
+            "ci_lower": low,
+            "ci_upper": high,
+            "favors": "Treatment" if estimate < 1.0 else "Control"
+        }
 
     return stats
 
@@ -67,8 +102,9 @@ def parse_pubmed_xml(xml_text: str):
             title = "".join(title_node.itertext()).strip() if title_node is not None else "Clinical Investigation"
 
             abstract_texts = article.findall(".//Abstract/AbstractText")
-            abstract = " ".join(["".join(ab.itertext()).strip() for ab in abstract_texts]) if abstract_texts else "Abstract available via full-text link."
+            abstract = " ".join(["".join(ab.itertext()).strip() for ab in abstract_texts]) if abstract_texts else "Abstract available via PubMed link."
 
+            # Publication Types
             pub_types = [pt.text for pt in article.findall(".//PublicationTypeList/PublicationType") if pt.text]
             badge = "Clinical Study"
             if any("Randomized Controlled Trial" in pt for pt in pub_types):
@@ -82,11 +118,29 @@ def parse_pubmed_xml(xml_text: str):
             sample_size = f"N = {sample_match.group(2)}" if sample_match else "Peer-Reviewed"
 
             journal_node = article.find(".//Journal/ISOAbbreviation") or article.find(".//Journal/Title")
-            source = journal_node.text if journal_node is not None else "PubMed"
+            source = journal_node.text if journal_node is not None else "PubMed Central"
 
             year_node = article.find(".//JournalIssue/PubDate/Year") or article.find(".//DateCompleted/Year")
             pubdate = year_node.text if year_node is not None else "Recent"
 
+            # PMC Full-Text Direct PDF Detection
+            pmc_id = None
+            for article_id in article.findall(".//ArticleIdList/ArticleId"):
+                if article_id.get("IdType") == "pmc":
+                    pmc_id = article_id.text
+                    break
+            
+            pdf_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/pdf/" if pmc_id else None
+
+            # Authors List
+            authors = []
+            for author in article.findall(".//AuthorList/Author"):
+                last = author.find("LastName")
+                if last is not None and last.text:
+                    authors.append(last.text)
+            author_str = ", ".join(authors[:3]) + (" et al." if len(authors) > 3 else "") if authors else "Investigative Team"
+
+            # Pharma COI
             coi_node = article.find(".//CoiStatement")
             coi_text = "".join(coi_node.itertext()).strip() if coi_node is not None else ""
             grants = [g.find("Agency").text for g in article.findall(".//GrantList/Grant") if g.find("Agency") is not None and g.find("Agency").text]
@@ -96,15 +150,18 @@ def parse_pubmed_xml(xml_text: str):
             studies.append({
                 "pmid": pmid,
                 "title": title,
+                "authors": author_str,
                 "abstract": abstract[:1200],
                 "badge": badge,
                 "sample_size": sample_size,
                 "source": source,
                 "pubdate": pubdate,
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                "pdf_url": pdf_url,
+                "is_open_access": bool(pdf_url),
                 "statistics": extract_quantitative_stats(abstract),
                 "funding_audit": {
-                    "bias_risk": "High" if len(sponsors) >= 2 else ("Moderate" if len(sponsors) == 1 else "Low"),
+                    "bias_risk": "High" if len(sponsors) >= 2 else ("Moderate" if len(sponsors) == 1 else "Low (Independent)"),
                     "commercial_sponsors": sponsors,
                     "coi_statement": coi_text if coi_text else "No direct commercial conflicts declared by authors."
                 }

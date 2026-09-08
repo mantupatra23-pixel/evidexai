@@ -26,3 +26,15 @@ class SearchLog(Base):
     summary = Column(Text, nullable=True)
     total_scanned = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Bookmark(Base):
+    __tablename__ = "bookmarks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    pmid = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    journal = Column(String, nullable=True)
+    pubdate = Column(String, nullable=True)
+    pdf_url = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

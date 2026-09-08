@@ -6,7 +6,7 @@ import hashlib
 import base64
 import json
 import time
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -36,7 +36,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict) -> str:
     header = {"alg": "HS256", "typ": "JWT"}
     payload = data.copy()
-    payload["exp"] = int(time.time()) + (60 * 60 * 24 * 7)
+    payload["exp"] = int(time.time()) + (60 * 60 * 24 * 7) # 7 days
     
     b64_header = base64.urlsafe_b64encode(json.dumps(header).encode()).rstrip(b'=').decode()
     b64_payload = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b'=').decode()
