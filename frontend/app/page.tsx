@@ -5,7 +5,7 @@ import {
   Search, ArrowRight, ExternalLink, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  ShieldCheck, FileSearch, Loader2, AlertCircle
+  ShieldCheck, FileSearch, Loader2
 } from "lucide-react";
 
 export default function Home() {
@@ -16,7 +16,6 @@ export default function Home() {
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
   const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
@@ -45,7 +44,6 @@ export default function Home() {
     setLoading(true);
     setData(null);
     setSelectedStudy(null);
-    setDownloadError(null);
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
       const json = await res.json();
@@ -70,11 +68,9 @@ export default function Home() {
     }
   };
 
-  // Direct In-App PDF Streamer with multi-gateway resolver
   const downloadDirectPdf = async (item: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setDownloadingPmid(item.pmid);
-    setDownloadError(null);
 
     try {
       let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
@@ -83,12 +79,15 @@ export default function Home() {
 
       const response = await fetch(endpoint);
       if (!response.ok) {
-        throw new Error("Unable to fetch PDF from repositories");
+        // Fallback gracefully to in-app clinical reader
+        setSelectedStudy(item);
+        return;
       }
 
       const blob = await response.blob();
       if (blob.size < 1000) {
-        throw new Error("Invalid PDF response");
+        setSelectedStudy(item);
+        return;
       }
 
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -100,9 +99,7 @@ export default function Home() {
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
     } catch (err) {
-      console.error(err);
-      setDownloadError("PDF is paywalled by the journal. Abstract available in Evidex.");
-      setTimeout(() => setDownloadError(null), 4000);
+      setSelectedStudy(item);
     } finally {
       setDownloadingPmid(null);
     }
@@ -111,15 +108,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
       
-      {/* Toast Error Bar */}
-      {downloadError && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700">
-          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{downloadError}</span>
-        </div>
-      )}
-
-      {/* Sidebar Overlay */}
       {sidebarOpen && (
         <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />
       )}
@@ -152,7 +140,7 @@ export default function Home() {
           <div className="pt-4 border-t border-slate-200 space-y-2">
             <h4 className="text-xs font-bold text-slate-900">Clinical Intelligence</h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Synthesizes 35M+ PubMed trials with direct open-access PDF downloads without external redirection.
+              Synthesizes 35M+ PubMed trials with full in-app evidence analysis.
             </p>
           </div>
         </div>
@@ -179,7 +167,6 @@ export default function Home() {
 
       {/* Main Container */}
       <main className="flex-1 flex flex-col items-center px-4 py-8 md:py-14 max-w-3xl mx-auto w-full">
-        
         <div className="text-center space-y-2 mb-6">
           <div className="inline-flex items-center gap-2 text-slate-900 font-bold text-sm">
             <span className="w-4 h-4 rounded-full bg-teal-500 text-white flex items-center justify-center text-[9px]">C</span>
@@ -188,7 +175,7 @@ export default function Home() {
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900">Research starts here</h1>
         </div>
 
-        {/* Search Input Box */}
+        {/* Search Bar */}
         <div className="w-full bg-white border border-slate-300 focus-within:border-[#0080ff] focus-within:ring-2 focus-within:ring-blue-100 rounded-2xl p-2.5 transition-all shadow-sm">
           <div className="flex items-center gap-2">
             <input
@@ -235,7 +222,6 @@ export default function Home() {
           })}
         </div>
 
-        {/* Loading Spinner */}
         {loading && (
           <div className="mt-8 text-xs text-slate-600 font-medium flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-full">
             <span className="w-2 h-2 rounded-full bg-[#0080ff] animate-ping" />
@@ -279,7 +265,7 @@ export default function Home() {
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.summary}</p>
             </div>
 
-            {/* Studies List */}
+            {/* Scanned Human Trials */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                 Scanned Human Trials ({data.total_studies_scanned}) - Tap to read inside Evidex
@@ -303,11 +289,6 @@ export default function Home() {
                         {item.statistics.p_value}
                       </span>
                     )}
-                    {item.statistics?.hazard_ratio && (
-                      <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-mono">
-                        {item.statistics.hazard_ratio}
-                      </span>
-                    )}
                   </div>
 
                   <h4 className="text-sm font-semibold text-slate-900 group-hover:text-[#0080ff] transition-colors leading-snug">
@@ -327,14 +308,14 @@ export default function Home() {
                           onClick={(e) => downloadDirectPdf(item, e)}
                           disabled={downloadingPmid === item.pmid}
                           className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
-                          title="Direct In-App PDF Download"
+                          title="Download Free PDF"
                         >
                           {downloadingPmid === item.pmid ? (
                             <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
                           ) : (
                             <Download className="w-3 h-3" />
                           )}
-                          <span>{downloadingPmid === item.pmid ? "Saving..." : "PDF"}</span>
+                          <span>{downloadingPmid === item.pmid ? "Loading..." : "PDF"}</span>
                         </button>
                       )}
                       
@@ -358,7 +339,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Landing Sections */}
+        {/* Landing Recommendations */}
         {!data && (
           <div className="w-full mt-12 space-y-10 text-left">
             <div className="border-t border-b border-slate-100 py-6 text-center space-y-2">
@@ -418,7 +399,7 @@ export default function Home() {
 
       </main>
 
-      {/* In-App Clinical Reader Modal */}
+      {/* In-App Reader Modal */}
       {selectedStudy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
@@ -514,7 +495,7 @@ export default function Home() {
                     ) : (
                       <Download className="w-3.5 h-3.5" />
                     )}
-                    <span>{downloadingPmid === selectedStudy.pmid ? "Downloading..." : "Download PDF"}</span>
+                    <span>{downloadingPmid === selectedStudy.pmid ? "Loading..." : "Download PDF"}</span>
                   </button>
                 )}
               </div>
