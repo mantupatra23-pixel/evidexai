@@ -7,10 +7,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./evidex.db")
 JWT_SECRET = os.getenv("JWT_SECRET", "evidex_clinical_jwt_secret_key_2026")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_MINUTES = 60 * 24 * 7  # 7 Days
 
-# Free Model Failover Pool
 EXPERIENTIAL_FREE_MODELS = [
     "deepseek-v4-flash",
     "qwen-3.5-27b",

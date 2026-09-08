@@ -1,10 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from database import get_db
-from models import User
-from auth import hash_password, verify_password, create_access_token, get_current_user_optional
+
+try:
+    from database import get_db
+    from models import User
+    from auth import hash_password, verify_password, create_access_token, get_current_user_optional
+except ImportError:
+    from backend.database import get_db
+    from backend.models import User
+    from backend.auth import hash_password, verify_password, create_access_token, get_current_user_optional
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 

@@ -1,6 +1,12 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
-from database import Base
+try:
+    from database import Base
+except ImportError:
+    from backend.database import Base
 
 class User(Base):
     __tablename__ = "users"

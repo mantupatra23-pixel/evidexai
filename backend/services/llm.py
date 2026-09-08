@@ -1,10 +1,19 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import httpx
 import json
 import re
-from config import (
-    EXPERIENTIAL_API_KEY, EXPERIENTIAL_BASE_URL,
-    GROQ_API_KEY, GEMINI_API_KEY, EXPERIENTIAL_FREE_MODELS
-)
+try:
+    from config import (
+        EXPERIENTIAL_API_KEY, EXPERIENTIAL_BASE_URL,
+        GROQ_API_KEY, GEMINI_API_KEY, EXPERIENTIAL_FREE_MODELS
+    )
+except ImportError:
+    from backend.config import (
+        EXPERIENTIAL_API_KEY, EXPERIENTIAL_BASE_URL,
+        GROQ_API_KEY, GEMINI_API_KEY, EXPERIENTIAL_FREE_MODELS
+    )
 
 SYSTEM_PROMPT = (
     "You are a clinical synthesis engine. Return ONLY valid JSON matching this schema: "

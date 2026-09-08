@@ -1,22 +1,33 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import APIRouter, Query, HTTPException, Depends
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 import json
 import asyncio
-from database import get_db
-from models import User, SearchLog
-from auth import get_current_user_optional
-from services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
-from services.llm import execute_llm_resilient_chain
+
+try:
+    from database import get_db
+    from models import User, SearchLog
+    from auth import get_current_user_optional
+    from services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
+    from services.llm import execute_llm_resilient_chain
+except ImportError:
+    from backend.database import get_db
+    from backend.models import User, SearchLog
+    from backend.auth import get_current_user_optional
+    from backend.services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
+    from backend.services.llm import execute_llm_resilient_chain
 
 router = APIRouter(prefix="/api", tags=["Clinical Engine"])
 
 @router.get("/search")
 async def search_evidence(
     q: str = Query(..., description="Clinical research question"),
-    min_year: int = Query(None, description="Start year filter"),
-    max_year: int = Query(None, description="End year filter"),
+    min_year: int = Query(None),
+    max_year: int = Query(None),
     study_type: str = Query(None, enum=["rct", "meta", "all"]),
     user: User = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
@@ -119,7 +130,7 @@ async def compare_treatments(
         study_context = "\n".join([f"- Title: {s['title']} (PMID: {s['pmid']})\n  Abstract: {s['abstract'][:300]}" for s in studies])
         compare_prompt = (
             f"Compare {treatment_a} vs {treatment_b} in {condition}:\n{study_context}\n\n"
-            "Return valid JSON schema: {\"primary_winner\": \"...\", \"comparison_matrix\": ["
+            "Return valid JSON: {\"primary_winner\": \"...\", \"comparison_matrix\": ["
             "{\"metric\": \"Primary Efficacy\", \"treatment_a\": \"...\", \"treatment_b\": \"...\"},"
             "{\"metric\": \"Safety & Tolerability\", \"treatment_a\": \"...\", \"treatment_b\": \"...\"}"
             "], \"verdict\": \"Summary with citations.\"}"

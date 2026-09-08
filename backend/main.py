@@ -1,23 +1,31 @@
-import sys
-import os
+import sys, os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+for p in [current_dir, parent_dir]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-# Auto-resolve python module paths
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PARENT_DIR = os.path.dirname(CURRENT_DIR)
-if CURRENT_DIR not in sys.path:
-    sys.path.insert(0, CURRENT_DIR)
-if PARENT_DIR not in sys.path:
-    sys.path.insert(0, PARENT_DIR)
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
-from routers import auth_routes, search_routes
+
+try:
+    from database import engine, Base
+    from routers import auth_routes, search_routes
+except ImportError:
+    from backend.database import engine, Base
+    from backend.routers import auth_routes, search_routes
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
 
 app = FastAPI(
-    title="Evidex.ai Clinical SaaS Engine",
+    title="Evidex.ai Clinical Engine",
     version="5.0.0",
-    description="Production-grade AI medical literature synthesis engine"
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -28,12 +36,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-# Mount Routers
 app.include_router(auth_routes.router)
 app.include_router(search_routes.router)
 
@@ -42,6 +44,5 @@ def health_check():
     return {
         "status": "healthy",
         "service": "Evidex.ai Enterprise Backend",
-        "architecture": "Modular Micro-services",
         "modules": ["auth", "search", "compare", "stream", "export"]
     }
