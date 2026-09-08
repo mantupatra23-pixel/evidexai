@@ -1,53 +1,87 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
-  Search, ArrowRight, ExternalLink, ShieldAlert, CheckCircle2, Lock, 
-  Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
-  Sparkles, Check, ChevronRight, Menu, X
+  Sparkles, ArrowUp, Menu, X, Plus, ExternalLink, 
+  Lock, CheckCircle2, ShieldAlert, FileText, Scale, 
+  Database, RefreshCw, ChevronRight, BookOpen
 } from "lucide-react";
 
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content?: string; data?: any }>>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const quickActions = [
-    { label: "Compare two treatments", icon: Scale },
-    { label: "Build comparison table", icon: Table },
-    { label: "Draft clinical report", icon: FileText },
-    { label: "Check pharma bias", icon: ShieldAlert },
+  const samplePrompts = [
+    {
+      title: "Compare Treatments",
+      desc: "SGLT2 inhibitors vs GLP-1 in CKD Stage 3",
+      icon: Scale,
+      query: "SGLT2 inhibitors vs GLP-1 agonists for renal outcomes in type 2 diabetes"
+    },
+    {
+      title: "Clinical Trial Review",
+      desc: "Dual antiplatelet therapy after stent placement",
+      icon: BookOpen,
+      query: "Duration of dual antiplatelet therapy after stent placement"
+    },
+    {
+      title: "Antibiotic Protocol",
+      desc: "Community-acquired pneumonia with MRSA risk",
+      icon: FileText,
+      query: "Antibiotic selection for community-acquired pneumonia with MRSA risk"
+    },
+    {
+      title: "Bias Risk Check",
+      desc: "Intermittent fasting vs calorie restriction",
+      icon: ShieldAlert,
+      query: "Does intermittent fasting reduce systemic inflammation in clinical trials?"
+    }
   ];
 
-  const medicalQueries = [
-    "Duration of dual antiplatelet therapy after stent placement",
-    "Antibiotic selection for community-acquired pneumonia with MRSA risk",
-    "SGLT2 inhibitors vs GLP-1 agonists for renal outcomes in type 2 diabetes",
-  ];
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading]);
 
   const handleSearch = async (searchQuery?: string) => {
-    const q = searchQuery || query;
-    if (!q.trim()) return;
-    setQuery(q);
+    const q = (searchQuery || query).trim();
+    if (!q || loading) return;
+
+    setQuery("");
+    setMessages((prev) => [...prev, { role: "user", content: q }]);
     setLoading(true);
-    setData(null);
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
       const json = await res.json();
-      setData(json);
+      setMessages((prev) => [...prev, { role: "assistant", data: json }]);
     } catch (err) {
-      console.error(err);
+      setMessages((prev) => [
+        ...prev, 
+        { 
+          role: "assistant", 
+          data: { 
+            summary: "Error connecting to clinical index server. Please retry.", 
+            studies: [] 
+          } 
+        }
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-[#00FF66] selection:text-black">
+    <div className="min-h-screen bg-black text-white font-sans flex flex-col selection:bg-[#00FF66] selection:text-black">
       
-      {/* 1. Backdrop Overlay (Drawer Open Hone Par Click Karke Close Hoga) */}
+      {/* 1. Backdrop Overlay */}
       {sidebarOpen && (
         <div 
           onClick={() => setSidebarOpen(false)}
@@ -55,269 +89,244 @@ export default function Home() {
         />
       )}
 
-      {/* 2. Slide-over Sidebar Drawer */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-zinc-800 p-5 flex flex-col justify-between transition-transform duration-300 ease-in-out shadow-2xl ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
-            <div className="flex items-center gap-2 font-black text-lg tracking-wider text-white">
-              <span className="w-3 h-3 rounded-full bg-[#00FF66] shadow-[0_0_10px_#00FF66]" />
-              EVIDEX<span className="text-[#00FF66]">.AI</span>
-            </div>
+      {/* 2. Slide Drawer (Gemini style) */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-zinc-900 p-4 flex flex-col justify-between transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-900">
             <button 
-              onClick={() => setSidebarOpen(false)} 
-              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white"
+              onClick={() => { setMessages([]); setSidebarOpen(false); }}
+              className="flex items-center gap-2 py-2 px-3 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-200"
             >
+              <Plus className="w-4 h-4 text-[#00FF66]" /> New Chat
+            </button>
+            <button onClick={() => setSidebarOpen(false)} className="p-2 text-zinc-400 hover:text-white">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="space-y-2">
-            <button 
-              onClick={() => { setData(null); setQuery(""); setSidebarOpen(false); }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-white transition-all shadow-sm"
-            >
-              <Plus className="w-4 h-4 text-[#00FF66]" /> New Search
-            </button>
-            <button 
-              onClick={() => setSidebarOpen(false)}
-              className="w-full flex items-center gap-3 py-2 px-3 rounded-xl bg-zinc-900/50 text-xs font-semibold text-zinc-300 hover:text-white"
-            >
-              <HomeIcon className="w-4 h-4 text-[#00FF66]" /> Home
-            </button>
-          </div>
-
-          <div className="pt-4 border-t border-zinc-800 space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#00FF66]">About Platform</h4>
-            <p className="text-xs text-zinc-300 leading-relaxed font-normal">
-              Search & analyze 35M+ peer-reviewed PubMed clinical trials with zero hallucination.
-            </p>
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 px-3">Recent Searches</span>
+            {messages.filter(m => m.role === "user").map((m, i) => (
+              <div key={i} className="text-xs text-zinc-400 truncate px-3 py-2 rounded-xl hover:bg-zinc-900 cursor-pointer">
+                {m.content}
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="pt-4 border-t border-zinc-800 space-y-2">
-          <button className="w-full py-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors text-center block">
-            Sign In
-          </button>
-          <button className="w-full py-2.5 rounded-xl bg-[#00FF66] text-black text-xs font-extrabold hover:bg-[#00e65c] transition-all shadow-[0_0_15px_rgba(0,255,102,0.3)]">
-            Sign Up
+        <div className="p-3 bg-zinc-900/60 rounded-2xl border border-zinc-900 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <Sparkles className="w-4 h-4 text-[#00FF66]" /> Evidex Pro
+          </div>
+          <p className="text-[11px] text-zinc-400">Unlock meta-analysis graphs & pharma funding bias audits.</p>
+          <button className="w-full py-1.5 rounded-xl bg-[#00FF66] text-black text-xs font-extrabold hover:bg-[#00e65c]">
+            Upgrade
           </button>
         </div>
       </aside>
 
-      {/* 3. Top Navigation Bar (Mobile & Desktop) */}
-      <header className="w-full flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-black/90 backdrop-blur-md sticky top-0 z-30">
+      {/* 3. Minimal Gemini Header */}
+      <header className="h-14 border-b border-zinc-900/80 px-4 flex items-center justify-between sticky top-0 bg-black/80 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setSidebarOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-white transition-all"
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900"
           >
-            <Menu className="w-4 h-4 text-[#00FF66]" />
-            <span>Menu</span>
+            <Menu className="w-5 h-5" />
           </button>
-          <span className="font-black text-base tracking-wider text-white">
-            EVIDEX<span className="text-[#00FF66]">.AI</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-black text-sm tracking-wider text-white">
+              Evidex<span className="text-[#00FF66]">.ai</span>
+            </span>
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-pulse" />
+              PubMed 35M+
+            </span>
+          </div>
         </div>
 
-        <button className="px-3.5 py-1.5 rounded-xl bg-[#00FF66] text-black text-xs font-extrabold hover:bg-[#00e65c] transition-all shadow-[0_0_12px_rgba(0,255,102,0.25)]">
-          Sign Up
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="px-3 py-1.5 rounded-full bg-[#00FF66] text-black text-xs font-extrabold shadow-[0_0_12px_rgba(0,255,102,0.3)]">
+            Sign In
+          </button>
+        </div>
       </header>
 
-      {/* 4. Full Width Central Hero */}
-      <main className="flex-1 flex flex-col items-center px-4 py-10 max-w-4xl mx-auto w-full relative">
+      {/* 4. Chat Body / Main View */}
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 pb-44 pt-6">
         
-        {/* Background Ambient Glow */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[300px] sm:w-[550px] h-[250px] bg-[#00FF66]/15 blur-[140px] rounded-full pointer-events-none" />
+        {/* Empty State (Gemini Style) */}
+        {messages.length === 0 && (
+          <div className="min-h-[70vh] flex flex-col justify-center">
+            
+            {/* Title Greeting */}
+            <div className="space-y-2 mb-10">
+              <div className="inline-flex items-center gap-2 text-xs font-bold text-[#00FF66]">
+                <Sparkles className="w-4 h-4" />
+                <span>Clinical Intelligence Engine</span>
+              </div>
+              <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-100">
+                Where should we <br />
+                <span className="text-[#00FF66]">begin the evidence?</span>
+              </h1>
+              <p className="text-zinc-400 text-sm max-w-md pt-1">
+                Scan PubMed clinical trials, extract sample sizes, and review verified findings without hallucinations.
+              </p>
+            </div>
 
-        {/* Hero Title */}
-        <div className="text-center space-y-3 mb-8 z-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-zinc-700 bg-zinc-900 text-xs font-bold text-zinc-200 shadow-md">
-            <span className="w-2 h-2 rounded-full bg-[#00FF66] animate-pulse shadow-[0_0_8px_#00FF66]" />
-            35M+ PubMed Clinical Papers Indexed
+            {/* Prompt Suggestion Cards (Gemini 2x2 Grid) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {samplePrompts.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => handleSearch(item.query)}
+                    className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 hover:border-[#00FF66] text-left transition-all group flex flex-col justify-between h-28"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-bold text-zinc-200 group-hover:text-white">{item.title}</span>
+                      <Icon className="w-4 h-4 text-zinc-500 group-hover:text-[#00FF66] transition-colors" />
+                    </div>
+                    <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed">{item.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white">
-            Evidence starts <span className="text-[#00FF66]">here.</span>
-          </h1>
-          <p className="text-zinc-200 text-sm sm:text-base font-normal max-w-lg mx-auto">
-            Search peer-reviewed medical trials, extract clinical sample sizes, and verify outcomes.
-          </p>
-        </div>
+        )}
 
-        {/* Search Engine Input Bar */}
-        <div className="w-full max-w-2xl bg-zinc-950 border-2 border-zinc-700 focus-within:border-[#00FF66] rounded-2xl p-2.5 transition-all shadow-[0_0_25px_rgba(0,0,0,0.8)] z-10">
-          <div className="flex items-center px-3 py-1">
-            <Search className="w-5 h-5 text-zinc-300 mr-3 shrink-0" />
+        {/* Message Feed */}
+        {messages.length > 0 && (
+          <div className="space-y-8">
+            {messages.map((msg, index) => (
+              <div key={index} className="space-y-4">
+                
+                {/* User Prompt */}
+                {msg.role === "user" && (
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] bg-zinc-900 border border-zinc-800 text-white rounded-3xl rounded-tr-sm px-5 py-3 text-sm leading-relaxed font-medium">
+                      {msg.content}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Response (Gemini layout) */}
+                {msg.role === "assistant" && (
+                  <div className="flex gap-3 text-left">
+                    <div className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 mt-1">
+                      <Sparkles className="w-4 h-4 text-[#00FF66]" />
+                    </div>
+
+                    <div className="flex-1 space-y-4">
+                      
+                      {/* Synthesis Text */}
+                      <div className="text-sm text-zinc-200 leading-relaxed whitespace-pre-line bg-zinc-950 border border-zinc-900 p-5 rounded-2xl">
+                        <div className="text-xs font-bold uppercase tracking-wider text-[#00FF66] mb-2 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Clinical Synthesis
+                        </div>
+                        {msg.data?.summary}
+                      </div>
+
+                      {/* Locked Monetized Feature */}
+                      <div className="relative rounded-2xl border border-zinc-800 bg-zinc-950 p-5 overflow-hidden">
+                        <div className="filter blur-sm select-none opacity-30">
+                          <h4 className="font-bold text-xs text-white">Pharma Funding Bias & Risk Analysis</h4>
+                          <p className="text-[11px] text-zinc-400">Independent vs Industry Sponsored clinical trial audit.</p>
+                          <div className="h-10 bg-zinc-900 rounded-lg mt-2" />
+                        </div>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                          <Lock className="w-5 h-5 text-[#00FF66] mb-1" />
+                          <span className="text-xs font-bold text-white">Unlock Deep Meta-Analysis & Bias Audit</span>
+                          <button className="mt-2 px-4 py-1 rounded-xl bg-[#00FF66] text-black text-xs font-black hover:bg-[#00e65c] shadow-[0_0_12px_rgba(0,255,102,0.3)]">
+                            Upgrade to Pro
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Source Chips / Accordion */}
+                      {msg.data?.studies && msg.data.studies.length > 0 && (
+                        <div className="space-y-2 pt-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                            Sources ({msg.data.studies.length} PubMed Trials)
+                          </span>
+                          <div className="grid grid-cols-1 gap-2">
+                            {msg.data.studies.map((item: any) => (
+                              <a
+                                key={item.pmid}
+                                href={item.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center justify-between p-3 rounded-xl border border-zinc-900 bg-zinc-950 hover:border-[#00FF66]/60 transition-all group"
+                              >
+                                <div className="space-y-1 pr-3">
+                                  <div className="text-xs font-semibold text-zinc-200 group-hover:text-[#00FF66] transition-colors line-clamp-1">
+                                    {item.title}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500 font-mono">
+                                    {item.source} • PMID: {item.pmid}
+                                  </div>
+                                </div>
+                                <ExternalLink className="w-3.5 h-3.5 text-zinc-500 group-hover:text-[#00FF66] shrink-0" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            ))}
+
+            {/* AI Streaming/Loading State */}
+            {loading && (
+              <div className="flex gap-3 text-left">
+                <div className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 mt-1">
+                  <Sparkles className="w-4 h-4 text-[#00FF66] animate-spin" />
+                </div>
+                <div className="flex items-center gap-2 py-2 text-xs text-zinc-400">
+                  <span className="w-2 h-2 rounded-full bg-[#00FF66] animate-ping" />
+                  Scanning 35M+ PubMed clinical trials...
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+
+      </main>
+
+      {/* 5. Fixed Floating Gemini Prompt Bar (Bottom) */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/90 to-transparent z-30">
+        <div className="max-w-3xl mx-auto space-y-2">
+          <div className="bg-zinc-950 border-2 border-zinc-800 focus-within:border-[#00FF66] rounded-3xl p-2 px-4 shadow-[0_0_30px_rgba(0,0,0,0.9)] flex items-center gap-2 backdrop-blur-xl">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Ask a clinical question (e.g. Metformin in CKD stage 3)..."
-              className="w-full bg-transparent text-sm sm:text-base text-white placeholder-zinc-400 font-medium focus:outline-none"
+              placeholder="Ask a clinical question (e.g. SGLT2 vs GLP-1 in CKD)..."
+              className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
             />
             <button
               onClick={() => handleSearch()}
               disabled={loading || !query.trim()}
-              className="p-2.5 rounded-xl bg-[#00FF66] text-black font-extrabold hover:bg-[#00e65c] transition-all disabled:opacity-30 shrink-0 shadow-[0_0_12px_rgba(0,255,102,0.4)]"
+              className="w-9 h-9 rounded-full bg-[#00FF66] hover:bg-[#00e65c] text-black flex items-center justify-center font-bold transition-all disabled:opacity-30 shrink-0 shadow-[0_0_12px_rgba(0,255,102,0.4)]"
             >
-              <ArrowRight className="w-4 h-4" />
+              <ArrowUp className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-2 pt-2.5 mt-2 border-t border-zinc-800/80 px-2 text-xs">
-            <span className="inline-flex items-center gap-1.5 bg-zinc-900 px-2.5 py-1 rounded-md border border-zinc-700 text-zinc-200 font-medium">
-              <Database className="w-3.5 h-3.5 text-[#00FF66]" /> Corpus: PubMed
-            </span>
-            <span className="inline-flex items-center gap-1.5 bg-zinc-900 px-2.5 py-1 rounded-md border border-zinc-700 text-zinc-300 font-medium">
-              <Filter className="w-3.5 h-3.5 text-zinc-300" /> Filters
-            </span>
-          </div>
+          <p className="text-[10px] text-zinc-600 text-center">
+            Evidex can provide insights from PubMed literature. Verify claims with clinical judgment.
+          </p>
         </div>
+      </div>
 
-        {/* Quick Action Suggestion Buttons */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-4 z-10 w-full">
-          {quickActions.map((action, idx) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={idx}
-                onClick={() => handleSearch(action.label)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:border-[#00FF66] hover:bg-zinc-800 text-zinc-200 hover:text-white text-xs font-semibold transition-all shadow-sm"
-              >
-                <Icon className="w-3.5 h-3.5 text-[#00FF66]" />
-                {action.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Loading Spinner */}
-        {loading && (
-          <div className="mt-12 text-sm text-white font-medium flex items-center gap-2 z-10 bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-full shadow-lg">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00FF66] animate-ping" />
-            Scanning 35M+ PubMed trials...
-          </div>
-        )}
-
-        {/* Search Results Display */}
-        {data && (
-          <div className="w-full max-w-2xl mt-8 space-y-6 text-left z-10">
-            {/* AI Summary Card */}
-            <div className="p-6 rounded-2xl bg-zinc-950 border border-zinc-700 shadow-xl">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#00FF66] mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Clinical Synthesis
-              </h3>
-              <p className="text-sm text-zinc-100 font-normal leading-relaxed whitespace-pre-line">{data.summary}</p>
-            </div>
-
-            {/* Blurred Premium Feature */}
-            <div className="relative rounded-2xl border border-zinc-700 bg-zinc-950 p-6 overflow-hidden shadow-xl">
-              <div className="filter blur-sm select-none opacity-40">
-                <h4 className="font-bold text-sm text-white mb-2">Pharma Funding Bias & Risk Analysis</h4>
-                <p className="text-xs text-zinc-300">Independent vs Industry Sponsored clinical trial audit.</p>
-                <div className="h-12 bg-zinc-800 rounded-lg mt-3" />
-              </div>
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 backdrop-blur-xs">
-                <Lock className="w-6 h-6 text-[#00FF66] mb-2" />
-                <span className="text-xs sm:text-sm font-bold text-white">Unlock Full Meta-Analysis & Bias Audit</span>
-                <button className="mt-3 px-4 py-1.5 rounded-xl bg-[#00FF66] text-black text-xs font-black hover:bg-[#00e65c] shadow-[0_0_15px_rgba(0,255,102,0.4)]">
-                  Upgrade to Pro
-                </button>
-              </div>
-            </div>
-
-            {/* Citations List */}
-            <div className="space-y-3">
-              <h3 className="text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Referenced Studies ({data.total_studies_scanned})</h3>
-              {data.studies.map((item: any) => (
-                <a
-                  key={item.pmid}
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:border-[#00FF66] hover:bg-zinc-900/60 transition-all shadow-md group"
-                >
-                  <div className="text-sm font-semibold text-white group-hover:text-[#00FF66] transition-colors">{item.title}</div>
-                  <div className="flex items-center gap-3 mt-2.5 text-xs text-zinc-300 font-medium">
-                    <span className="text-zinc-400">{item.source}</span>
-                    <span>•</span>
-                    <span className="text-zinc-400">PMID: {item.pmid}</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-[#00FF66] ml-auto" />
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 5. Below Hero Sections */}
-        {!data && (
-          <div className="w-full max-w-2xl mt-14 space-y-10 z-10 text-left">
-            
-            {/* Corpora Strip */}
-            <div className="border-t border-b border-zinc-800 py-5 text-center space-y-2">
-              <span className="text-[11px] uppercase tracking-widest text-[#00FF66] font-bold">Indexed Medical Corpora</span>
-              <div className="flex flex-wrap items-center justify-center gap-5 text-zinc-200 font-mono text-xs font-medium">
-                <span className="hover:text-[#00FF66] transition-colors">PUBMED CENTRAL</span>
-                <span className="text-zinc-600">•</span>
-                <span className="hover:text-[#00FF66] transition-colors">NCBI ENTREZ</span>
-                <span className="text-zinc-600">•</span>
-                <span className="hover:text-[#00FF66] transition-colors">MEDRXIV</span>
-                <span className="text-zinc-600">•</span>
-                <span className="hover:text-[#00FF66] transition-colors">OPENALEX</span>
-              </div>
-            </div>
-
-            {/* Try Medical Mode */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#00FF66]" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-white">Try Medical Mode</h3>
-              </div>
-              <p className="text-xs text-zinc-300 font-normal">Instant answers from clinical guidelines and top medical journals.</p>
-              <div className="space-y-2">
-                {medicalQueries.map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSearch(item)}
-                    className="w-full flex items-center justify-between p-3.5 rounded-xl border border-zinc-800 bg-zinc-950 hover:border-[#00FF66] text-xs text-zinc-200 font-medium transition-all text-left group shadow-sm"
-                  >
-                    <span>{item}</span>
-                    <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-[#00FF66] transition-colors shrink-0" />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Evidence Consensus Meter Preview */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#00FF66]" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-white">See Where Research Agrees</h3>
-              </div>
-              <div className="p-5 rounded-2xl border border-zinc-800 bg-zinc-950 space-y-3.5 shadow-md">
-                <div className="text-xs text-white font-semibold">
-                  "Does intermittent fasting reduce systemic inflammation in adults?"
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-mono font-bold">
-                    <span className="text-[#00FF66]">78% Yes</span>
-                    <span className="text-zinc-300">14% Inconclusive</span>
-                    <span className="text-zinc-400">8% No</span>
-                  </div>
-                  <div className="w-full h-2.5 rounded-full bg-zinc-900 border border-zinc-800 flex overflow-hidden">
-                    <div className="bg-[#00FF66] h-full shadow-[0_0_8px_#00FF66]" style={{ width: "78%" }} />
-                    <div className="bg-zinc-600 h-full" style={{ width: "14%" }} />
-                    <div className="bg-zinc-800 h-full" style={{ width: "8%" }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        )}
-      </main>
     </div>
   );
 }
