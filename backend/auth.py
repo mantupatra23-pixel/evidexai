@@ -1,22 +1,28 @@
 from datetime import datetime, timedelta
+import hashlib
+import os
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from backend.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_MINUTES
-from backend.database import get_db
-from backend.models import User
+from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_MINUTES
+from database import get_db
+from models import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = os.urandom(16).hex()
+    pwd_hash = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}${pwd_hash}"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        salt, stored_hash = hashed_password.split("$")
+        return hashlib.sha256((salt + plain_password).encode()).hexdigest() == stored_hash
+    except Exception:
+        return False
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()

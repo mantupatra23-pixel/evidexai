@@ -1,7 +1,7 @@
 import httpx
 import json
 import re
-from backend.config import (
+from config import (
     EXPERIENTIAL_API_KEY, EXPERIENTIAL_BASE_URL,
     GROQ_API_KEY, GEMINI_API_KEY, EXPERIENTIAL_FREE_MODELS
 )
@@ -18,7 +18,6 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
         "consensus": {"yes": 70, "inconclusive": 20, "no": 10}
     }
 
-    # Gateway 1: Experiential Labs Free Model Failover Pool
     if EXPERIENTIAL_API_KEY:
         for model in EXPERIENTIAL_FREE_MODELS:
             try:
@@ -38,7 +37,6 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
             except Exception:
                 continue
 
-    # Gateway 2: Groq Llama-3 Direct Priority Failover
     if GROQ_API_KEY:
         try:
             res = await client.post(
@@ -57,7 +55,6 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
         except Exception:
             pass
 
-    # Gateway 3: Google Gemini API Direct Failover
     if GEMINI_API_KEY:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"

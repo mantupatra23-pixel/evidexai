@@ -1,15 +1,14 @@
 from fastapi import APIRouter, Query, HTTPException, Depends
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 import httpx
 import json
 import asyncio
-from backend.database import get_db
-from backend.models import User, SearchLog
-from backend.auth import get_current_user_optional
-from backend.services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
-from backend.services.llm import execute_llm_resilient_chain
+from database import get_db
+from models import User, SearchLog
+from auth import get_current_user_optional
+from services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
+from services.llm import execute_llm_resilient_chain
 
 router = APIRouter(prefix="/api", tags=["Clinical Engine"])
 
@@ -50,7 +49,6 @@ async def search_evidence(
         )
         studies = parse_pubmed_xml(fetch_res.text)
 
-        # Paywall blur / lock control
         is_user_pro = user.is_pro if user else False
         all_sponsors = []
         flagged = []
@@ -74,7 +72,6 @@ async def search_evidence(
         prompt = f"Question: {q}\n\nHuman Studies:\n{study_context}\n\nSynthesize findings into 3 evidence points with PMID citations."
         ai_result = await execute_llm_resilient_chain(prompt, client)
 
-        # Log query to database if user logged in
         if user:
             log_entry = SearchLog(user_id=user.id, query=q, summary=ai_result.get("summary"), total_scanned=len(studies))
             db.add(log_entry)

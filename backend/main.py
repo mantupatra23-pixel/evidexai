@@ -1,7 +1,18 @@
+import sys
+import os
+
+# Auto-resolve python module paths
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.database import engine, Base
-from backend.routers import auth_routes, search_routes
+from database import engine, Base
+from routers import auth_routes, search_routes
 
 app = FastAPI(
     title="Evidex.ai Clinical SaaS Engine",
