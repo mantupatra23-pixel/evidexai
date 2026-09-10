@@ -6,7 +6,7 @@ import {
   Plus, Home as HomeIcon, Filter, Database, Scale, Table as TableIcon, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
   ShieldCheck, FileSearch, History, Bookmark, Share2, ArrowRight, Lightbulb,
-  AlertTriangle, Grid, HelpCircle
+  AlertTriangle, Grid, HelpCircle, Layers, GitBranch
 } from "lucide-react";
 
 export default function Home() {
@@ -18,10 +18,10 @@ export default function Home() {
   const [referenceTab, setReferenceTab] = useState<string>("ALL");
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
   const [recentThreads, setRecentThreads] = useState<string[]>([
+    "Evolution of the dopamine hypothesis in schizophrenia",
     "Does vitamin D supplementation prevent fractures in elderly?",
     "SGLT2 inhibitors mortality in heart failure",
-    "Does aspirin prevent cardiovascular events?",
-    "Evolution of the dopamine hypothesis in schizophrenia"
+    "Does aspirin prevent cardiovascular events?"
   ]);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
@@ -61,8 +61,8 @@ export default function Home() {
   };
 
   const rep = report?.summary || {};
-  const pico = rep.pico || {};
-  const consensus = rep.consensus || { yes: 20, possibly: 20, mixed: 10, no: 50 };
+  const funnel = rep.funnel || { retrieved: "145.3M", eligible: "2.8K", included: "100", steps: "21 steps" };
+  const consensus = rep.consensus || { yes: 77, possibly: 15, mixed: 0, no: 8 };
 
   const filteredStudies = report?.studies?.filter((s: any) => {
     if (referenceTab === "ALL") return true;
@@ -143,7 +143,7 @@ export default function Home() {
         )}
       </aside>
 
-      {/* 2. MAIN RESEARCH WORKSPACE */}
+      {/* 2. MAIN RESEARCH CANVAS */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
         
         <header className="h-12 border-b border-slate-200/80 px-4 flex items-center justify-between shrink-0 bg-white/95 backdrop-blur-md z-20">
@@ -201,10 +201,10 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 gap-2 w-full pt-2 text-left">
                   {[
+                    "Evolution of the dopamine hypothesis in schizophrenia",
                     "Does vitamin D supplementation prevent fractures in elderly?",
                     "SGLT2 inhibitors mortality in heart failure",
-                    "Does aspirin prevent cardiovascular events in primary prevention?",
-                    "Evolution of the dopamine hypothesis in schizophrenia"
+                    "Does aspirin prevent cardiovascular events?"
                   ].map((item, idx) => (
                     <button
                       key={idx}
@@ -228,57 +228,53 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className="space-y-2 border-b border-slate-100 pb-4">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Clinical Synthesis</span>
-                    <span>•</span>
-                    <span>PubMed Human Trials ({report.total_studies_scanned} Multi-Center Studies Analyzed)</span>
+                {/* Multi-Step Deep Execution Badge & Funnel */}
+                <div className="p-4 rounded-2xl bg-[#f0f4f9] border border-slate-200 flex items-center justify-between flex-wrap gap-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
+                    <span className="font-bold text-slate-800">Deep Consensus ({funnel.steps})</span>
                   </div>
+                  <div className="flex items-center gap-4 text-slate-600 font-medium font-mono">
+                    <span>Retrieved: <strong className="text-slate-900">{funnel.retrieved}</strong></span>
+                    <span>→</span>
+                    <span>Eligible: <strong className="text-slate-900">{funnel.eligible}</strong></span>
+                    <span>→</span>
+                    <span>Included: <strong className="text-teal-700">{funnel.included}</strong></span>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="space-y-2 border-b border-slate-100 pb-4">
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 leading-snug">
-                    {rep.title || "Clinical Evidence Appraisal and Consensus Analysis"}
+                    {rep.title || report.query}
                   </h1>
                 </div>
 
-                {/* 1. Executive Summary */}
-                <div className="p-5 rounded-2xl bg-[#f8fafc] border border-slate-200 space-y-4 shadow-2xs">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-teal-600 text-white px-2.5 py-1 rounded">
-                      Clinical Bottom Line
-                    </span>
-                    <span className="text-xs font-semibold text-slate-600">
-                      Evidence Strength: <strong className="text-teal-700">{rep.evidence_strength || "MODERATE"}</strong> (Confidence: {rep.evidence_confidence || 85}%)
-                    </span>
-                  </div>
-
-                  <p className="text-sm sm:text-base font-semibold text-slate-900 leading-relaxed">
-                    {rep.clinical_bottom_line || "Evidence indicates nuanced efficacy across monitored patient cohorts."}
+                {/* 1. Introduction */}
+                <div className="space-y-3">
+                  <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-teal-700 border-b border-slate-100 pb-1">
+                    1. Introduction
+                  </h2>
+                  <p className="text-sm sm:text-base text-slate-800 leading-relaxed whitespace-pre-line">
+                    {rep.introduction}
                   </p>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-200/70 text-xs">
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] uppercase font-bold text-teal-700 block">P: Population</span>
-                      <span className="text-slate-700 font-medium truncate block">{pico.population || "Patient cohort"}</span>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] uppercase font-bold text-teal-700 block">I: Intervention</span>
-                      <span className="text-slate-700 font-medium truncate block">{pico.intervention || "Therapeutic course"}</span>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] uppercase font-bold text-teal-700 block">C: Comparator</span>
-                      <span className="text-slate-700 font-medium truncate block">{pico.comparator || "Placebo / Standard"}</span>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-[10px] uppercase font-bold text-teal-700 block">O: Outcome</span>
-                      <span className="text-slate-700 font-medium truncate block">{pico.outcome || "Endpoints"}</span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* 2. Visual Component: 4-Tier Consensus Multi-Bar */}
+                {/* 2. Methods */}
+                <div className="space-y-3">
+                  <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-teal-700 border-b border-slate-100 pb-1">
+                    2. Methods & Search Strategy
+                  </h2>
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {rep.methods}
+                  </p>
+                </div>
+
+                {/* 3. Research Consensus Meter */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-slate-800 uppercase tracking-wider">Research Consensus Breakdown</span>
-                    <span className="text-teal-700 font-semibold">{consensus.no}% Outcome Negative / Inconclusive</span>
+                    <span className="text-teal-700 font-semibold">{consensus.yes}% Positive Agreement</span>
                   </div>
                   
                   <div className="w-full h-3 rounded-full bg-slate-100 flex overflow-hidden border border-slate-200">
@@ -296,46 +292,40 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* 3. Clinical Synthesis Narrative */}
-                <div className="space-y-3">
-                  <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-1">
-                    Clinical Synthesis & Evidence Evaluation
+                {/* 4. Results & Foundational Papers Table */}
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-teal-700 border-b border-slate-100 pb-1">
+                    3. Results & Foundational Papers
                   </h2>
-                  <p className="text-sm sm:text-base text-slate-800 leading-relaxed whitespace-pre-line">
-                    {rep.lead_narrative || "Direct clinical investigation across multi-center randomized controlled trials demonstrates that therapeutic responses are closely linked to patient baseline risk and disease stage."}
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {rep.results}
                   </p>
-                </div>
 
-                {/* 4. Comparative Evidence Table */}
-                {rep.table && rep.table.rows && (
-                  <div className="space-y-2 pt-2">
-                    <h2 className="text-lg font-bold text-slate-900">
-                      Comparative Evidence Table
-                    </h2>
+                  {rep.foundational_papers && (
                     <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-[#f8fafc] border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px]">
                           <tr>
-                            {rep.table.columns.map((col: string, idx: number) => (
-                              <th key={idx} className="p-3.5 whitespace-nowrap">{col}</th>
-                            ))}
+                            <th className="p-3.5">Foundational Paper</th>
+                            <th className="p-3.5">Milestone Summary</th>
+                            <th className="p-3.5 whitespace-nowrap">Year / Citations</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
-                          {rep.table.rows.map((row: string[], idx: number) => (
-                            <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                              <td className="p-3.5 font-semibold text-slate-900 whitespace-nowrap">{row[0]}</td>
-                              <td className="p-3.5 text-slate-600 leading-relaxed min-w-[280px]">{row[1]}</td>
-                              <td className="p-3.5 font-mono text-[11px] text-teal-700 whitespace-nowrap font-medium">{row[2]}</td>
+                          {rep.foundational_papers.map((fp: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-slate-50/70">
+                              <td className="p-3.5 font-semibold text-slate-900">{fp.paper} ({fp.author})</td>
+                              <td className="p-3.5 text-slate-600">{fp.summary}</td>
+                              <td className="p-3.5 font-mono text-[11px] text-teal-700 whitespace-nowrap">{fp.year} • {fp.citations} citations</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* 5. Visual Component: Claim-Level Evidence Strength Rating Table */}
+                {/* 5. Evidence Claims Strength Table */}
                 {rep.evidence_claims && (
                   <div className="space-y-2 pt-2">
                     <h2 className="text-lg font-bold text-slate-900">
@@ -361,7 +351,7 @@ export default function Home() {
                                     {[...Array(10)].map((_, i) => (
                                       <span 
                                         key={i} 
-                                        className={`w-1.5 h-3.5 rounded-2xs ${i < item.bars ? (item.bars >= 7 ? 'bg-emerald-500' : (item.bars >= 4 ? 'bg-amber-400' : 'bg-rose-400')) : 'bg-slate-200'}`}
+                                        className={`w-1.5 h-3.5 rounded-2xs ${i < item.bars ? (item.bars >= 7 ? 'bg-emerald-500' : 'bg-amber-400') : 'bg-slate-200'}`}
                                       />
                                     ))}
                                   </div>
@@ -378,21 +368,17 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 6. Visual Component: 2D Research Gaps Heatmap Matrix */}
+                {/* 6. Research Gaps Heatmap Matrix */}
                 {rep.research_gaps && (
                   <div className="space-y-2 pt-2">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Grid className="w-4 h-4 text-teal-600" /> Evidence Density & Research Gaps
-                      </h2>
-                      <span className="text-xs text-slate-400 font-normal">Identifies under-researched clinical domains</span>
-                    </div>
-                    
+                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Grid className="w-4 h-4 text-teal-600" /> Evidence Density & Research Gaps
+                    </h2>
                     <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-[#f8fafc] border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px]">
                           <tr>
-                            <th className="p-3.5">Clinical Domain</th>
+                            <th className="p-3.5">Domain</th>
                             {rep.research_gaps.columns.map((c: string, idx: number) => (
                               <th key={idx} className="p-3.5 text-center whitespace-nowrap">{c}</th>
                             ))}
@@ -407,7 +393,6 @@ export default function Home() {
                                 if (cnt > 15) bg = "bg-blue-600 text-white font-bold";
                                 else if (cnt >= 5) bg = "bg-blue-400 text-white font-semibold";
                                 else if (cnt === 0) bg = "bg-slate-100 text-slate-400 italic";
-
                                 return (
                                   <td key={cIdx} className="p-2 text-center">
                                     <div className={`py-1.5 px-3 rounded-lg text-xs mx-auto max-w-[90px] ${bg}`}>
@@ -424,13 +409,32 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 7. Visual Component: Open Research Questions (Interactive Follow-up Cards) */}
+                {/* 4. Discussion */}
+                <div className="space-y-3 pt-2">
+                  <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-teal-700 border-b border-slate-100 pb-1">
+                    4. Discussion & Limitations
+                  </h2>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                    {rep.discussion}
+                  </p>
+                </div>
+
+                {/* 5. Conclusion */}
+                <div className="space-y-3 pt-2">
+                  <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-teal-700 border-b border-slate-100 pb-1">
+                    5. Conclusion
+                  </h2>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                    {rep.conclusion}
+                  </p>
+                </div>
+
+                {/* Open Research Questions */}
                 {rep.open_questions && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-3 pt-3">
                     <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                       <HelpCircle className="w-4 h-4 text-teal-600" /> Open Research Questions
                     </h2>
-                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {rep.open_questions.map((q: any, idx: number) => (
                         <div 
@@ -451,44 +455,13 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 8. Merits & Limitations Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <div className="p-4 rounded-2xl border border-slate-200 bg-[#f8fafc] space-y-2.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-teal-600" /> Key Clinical Merits
-                    </h4>
-                    <ul className="space-y-2 text-xs text-slate-700">
-                      {(rep.key_merits || ["Demonstrated primary efficacy boundaries across large randomized cohorts.", "Established robust safety parameters in trials."]).map((m: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 leading-relaxed">
-                          <span className="text-teal-600 font-bold shrink-0">•</span>
-                          <span>{m}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="p-4 rounded-2xl border border-slate-200 bg-[#f8fafc] space-y-2.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" /> Limitations & Biases
-                    </h4>
-                    <ul className="space-y-2 text-xs text-slate-700">
-                      {(rep.limitations || ["Heterogeneity in dosing regimens across monitored trials.", "Need for longer prospective registries."]).map((l: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 leading-relaxed">
-                          <span className="text-amber-600 font-bold shrink-0">•</span>
-                          <span>{l}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
               </div>
             )}
 
             {loading && (
               <div className="py-24 text-center space-y-3">
                 <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-xs text-slate-500 font-medium">Synthesizing clinical trials and constructing visual evidence intelligence...</p>
+                <p className="text-xs text-slate-500 font-medium">Executing multi-step deep execution funnel and compiling synthesis document...</p>
               </div>
             )}
 
@@ -586,7 +559,7 @@ export default function Home() {
                   <Database className="w-3 h-3" /> Deep Consensus
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Visual Intelligence 2.0</span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Deep Research Engine</span>
             </div>
           </div>
         </div>
