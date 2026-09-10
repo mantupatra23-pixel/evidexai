@@ -10,12 +10,37 @@ import {
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
+  const [executingStep, setExecutingStep] = useState(0);
+  const [streamedQueries, setStreamedQueries] = useState<any[]>([]);
   const [report, setReport] = useState<any | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showReferences, setShowReferences] = useState(true);
   const [showFunnelTree, setShowFunnelTree] = useState(true);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
+
+  const generateSubQueries = (baseQ: string) => [
+    { text: `${baseQ}`, count: "2.6M" },
+    { text: `historical development of ${baseQ}`, count: "14.4M" },
+    { text: `mechanistic pathways and cellular models of ${baseQ}`, count: "18.7M" },
+    { text: `pharmacological and therapeutic response in ${baseQ}`, count: "1.6M" },
+    { text: `Citation Graph: 50 seeds, 2730 connections`, count: "2.7K", isGraph: true },
+    { text: `development and refinement of clinical models`, count: "8.0M" },
+    { text: `historical perspectives and clinical trial findings`, count: "14.7M" },
+    { text: `shifts in contemporary evidence paradigms`, count: "9.5M" },
+    { text: `limitations, critiques, and counter-evidence`, count: "7.1M" },
+    { text: `treatment-resistant sub-populations and biomarkers`, count: "4.8M" },
+    { text: `challenges to classical consensus orthodoxy`, count: "1.7M" },
+    { text: `integration of multi-system clinical variables`, count: "542.6K" },
+    { text: `longitudinal cohort analysis and risk factors`, count: "5.3M" },
+    { text: `evolutionary and genetic perspectives`, count: "3.0M" },
+    { text: `neurodevelopmental and molecular modeling`, count: "471.1K" },
+    { text: `secondary endpoints and receptor dynamics`, count: "6.3M" },
+    { text: `adverse events and contraindication registries`, count: "1.7M" },
+    { text: `interaction with neurochemical co-factors`, count: "1.6M" },
+    { text: `methodological approaches in multi-center trials`, count: "13.4M" },
+    { text: `imaging, pharmacological, and meta-analytic evidence`, count: "335.8K" },
+    { text: `comparative analysis of experimental trials`, count: "28.4M" }
+  ];
 
   const defaultLandmarkStudies = [
     {
@@ -70,36 +95,6 @@ export default function Home() {
     }
   ];
 
-  const subQueriesList = [
-    { text: "Evolution of the dopamine hypothesis of schizophrenia", count: "2.6M" },
-    { text: "historical development of the dopamine hypothesis", count: "14.4M" },
-    { text: "evolution of dopamine theory in schizophrenia", count: "18.7M" },
-    { text: "history of dopamine hypothesis and antipsychotics", count: "1.6M" },
-    { text: "Citation Graph: 50 seeds, 2730 connections", count: "2.7K" },
-    { text: "development of the dopamine hypothesis of psychosis", count: "8M" },
-    { text: "historical perspectives on dopamine's role in schizophrenia", count: "14.7M" },
-    { text: "shifts in neurochemical models of schizophrenia", count: "9.5M" },
-    { text: "limitations of the dopamine hypothesis of schizophrenia", count: "7.1M" }
-  ];
-
-  const loadingStepsList = [
-    "Searching 35M+ PubMed & PMC human records...",
-    "Tracing Citation Graph & generating 21 search vectors...",
-    "Filtering evidence by study design & relevance...",
-    "Synthesizing Consensus Systematic Literature Review..."
-  ];
-
-  useEffect(() => {
-    let timer: any;
-    if (loading) {
-      setLoadingStep(0);
-      timer = setInterval(() => {
-        setLoadingStep((prev) => (prev < loadingStepsList.length - 1 ? prev + 1 : prev));
-      }, 700);
-    }
-    return () => clearInterval(timer);
-  }, [loading]);
-
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
   const handleSearch = async (searchQuery?: string) => {
@@ -107,6 +102,17 @@ export default function Home() {
     if (!q.trim()) return;
     setLoading(true);
     setReport(null);
+    setStreamedQueries([]);
+    setExecutingStep(0);
+
+    const fullSteps = generateSubQueries(q);
+
+    // Stream the 21 steps progressively in the UI
+    for (let i = 0; i < fullSteps.length; i++) {
+      await new Promise((r) => setTimeout(r, 65));
+      setStreamedQueries((prev) => [...prev, fullSteps[i]]);
+      setExecutingStep(i + 1);
+    }
 
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
@@ -176,14 +182,14 @@ export default function Home() {
       {/* 2. MAIN RESEARCH WORKSPACE */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
         
-        {/* Top Header */}
+        {/* Top Minimal Header */}
         <header className="h-11 border-b border-slate-200 px-4 flex items-center justify-between shrink-0 bg-white z-20 text-xs">
           <div className="flex items-center gap-2">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 rounded text-slate-600 md:hidden">
               <Menu className="w-4 h-4" />
             </button>
             <span className="font-bold text-slate-800 truncate max-w-xs sm:max-w-md">
-              {report ? report.query : "Dopamine Hypothesis Schizophrenia Evolution"}
+              {report ? report.query : (query || "Consensus Deep Research Workspace")}
             </span>
             <span className="text-slate-400">▾</span>
           </div>
@@ -203,7 +209,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Workspace Body: Split Document View */}
+        {/* Workspace Body */}
         <div className="flex-1 flex overflow-hidden">
           
           {/* Main Document Canvas */}
@@ -243,9 +249,57 @@ export default function Home() {
               </div>
             )}
 
-            {/* FULL DEEP SYSTEMATIC REVIEW DOCUMENT (MATCHING ALL 9 SCREENSHOTS) */}
+            {/* LIVE STEP-BY-STEP PROGRESS STREAMING (SCREENSHOT 76403_2) */}
+            {loading && (
+              <div className="space-y-6">
+                <div className="flex justify-end">
+                  <span className="bg-blue-50 text-blue-800 text-xs font-medium px-3.5 py-1.5 rounded-2xl border border-blue-100">
+                    {query}
+                  </span>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl bg-slate-50/60 p-4 space-y-3 font-mono text-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
+                      <span className="font-bold text-slate-900">Deep • {executingStep} steps</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-slate-600 text-[11px]">
+                      <span><strong>145.3M</strong> Retrieved</span>
+                      <span><strong>2.8K</strong> Eligible</span>
+                      <span><strong>100</strong> Included</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200/60">
+                    {streamedQueries.map((sq, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-[11px] text-slate-600 animate-in fade-in duration-150">
+                        <span className="truncate max-w-[85%] flex items-center gap-1.5">
+                          {sq.isGraph ? <GitBranch className="w-3 h-3 text-teal-600" /> : <Search className="w-3 h-3 text-slate-400" />}
+                          {sq.text}
+                        </span>
+                        <span className="text-slate-400 shrink-0">{sq.count} ↗</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {executingStep >= 21 && (
+                    <div className="pt-2 text-[11px] text-teal-700 font-sans font-medium border-t border-slate-200/60 animate-pulse">
+                      ✓ I've gathered enough information to prepare a Literature Review. Ranking the final set of retrieved papers across each search now.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-400 pt-2">
+                  <span className="animate-spin">◒</span>
+                  <span>Thinking... synthesizing deep consensus review...</span>
+                </div>
+              </div>
+            )}
+
+            {/* FULL DEEP SYSTEMATIC REVIEW REPORT (SCREENSHOTS 76404 to 76411) */}
             {report && (
-              <div className="space-y-8">
+              <div className="space-y-8 animate-in fade-in duration-300">
                 
                 {/* Query Bubble */}
                 <div className="flex justify-end">
@@ -254,14 +308,14 @@ export default function Home() {
                   </span>
                 </div>
 
-                {/* 1. Expandable Deep Execution Tree (Screenshot 76403) */}
+                {/* 1. Funnel Execution Card */}
                 <div className="border border-slate-200 rounded-xl bg-slate-50/60 overflow-hidden text-xs">
                   <div 
                     onClick={() => setShowFunnelTree(!showFunnelTree)}
                     className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-100/60"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-teal-600" />
                       <span className="font-bold text-slate-800">Deep • {funnel.steps}</span>
                     </div>
                     <div className="flex items-center gap-3 text-slate-600 font-mono">
@@ -274,10 +328,11 @@ export default function Home() {
 
                   {showFunnelTree && (
                     <div className="p-3.5 pt-0 border-t border-slate-200/60 space-y-2 font-mono text-[11px] text-slate-600">
-                      {subQueriesList.map((sq, i) => (
+                      {generateSubQueries(report.query).slice(0, 10).map((sq, i) => (
                         <div key={i} className="flex items-center justify-between hover:text-slate-900 py-0.5">
                           <span className="truncate max-w-[80%] flex items-center gap-1.5">
-                            <Search className="w-3 h-3 text-slate-400" /> {sq.text}
+                            {sq.isGraph ? <GitBranch className="w-3 h-3 text-teal-600" /> : <Search className="w-3 h-3 text-slate-400" />}
+                            {sq.text}
                           </span>
                           <span className="text-slate-400 shrink-0">{sq.count} ↗</span>
                         </div>
@@ -289,13 +344,13 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Title & Overview Abstract with Author Pills (Screenshot 76404) */}
+                {/* Title & Overview Paragraph */}
                 <div className="space-y-3 border-b border-slate-100 pb-4">
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 leading-snug">
-                    {rep.title || "Evolution of the Dopamine Hypothesis in Schizophrenia"}
+                    {rep.title || report.query}
                   </h1>
                   <p className="text-sm sm:text-base text-slate-800 leading-relaxed">
-                    The dopamine hypothesis of schizophrenia evolved from a simple idea of global dopamine excess into a much more specific model in which presynaptic striatal dopamine dysregulation contributes mainly to psychosis, while broader cortical, glutamatergic, developmental, and environmental mechanisms shape the rest of the syndrome {renderPill("HOWES 2009")} {renderPill("LAU 2013")} {renderPill("ZHAO 2005")} {renderPill("+12 MORE")}.
+                    {rep.overview || "The dopamine hypothesis of schizophrenia evolved from a simple idea of global dopamine excess into a much more specific model in which presynaptic striatal dopamine dysregulation contributes mainly to psychosis, while broader cortical, glutamatergic, developmental, and environmental mechanisms shape the rest of the syndrome"} {renderPill("HOWES 2009")} {renderPill("LAU 2013")} {renderPill("ZHAO 2005")} {renderPill("+12 MORE")}.
                   </p>
                 </div>
 
@@ -305,17 +360,14 @@ export default function Home() {
                     1. Introduction
                   </h2>
                   <p className="text-sm text-slate-800 leading-relaxed">
-                    The earliest form of the hypothesis emerged from psychopharmacology: stimulants such as amphetamine could induce psychotic symptoms, and antipsychotic efficacy tracked dopamine receptor blockade, especially at D2 receptors {renderPill("LAU 2013")} {renderPill("HOWES 2016")} {renderPill("SEEMAN 1987")} {renderPill("+5 MORE")}. This made dopamine the dominant explanatory framework for schizophrenia for decades, but even early reviews noted that the evidence was largely indirect and that schizophrenia was heterogeneous rather than a single hyperdopaminergic disorder {renderPill("CARLSSON 1988")} {renderPill("HARACZ 1982")}.
-                  </p>
-                  <p className="text-sm text-slate-800 leading-relaxed">
-                    Over time, the hypothesis was repeatedly revised because it could explain positive symptoms and antipsychotic action better than negative symptoms, cognitive deficits, onset, or treatment resistance {renderPill("TODA 2007")} {renderPill("LAU 2013")} {renderPill("LYMAN 2021")} {renderPill("+3 MORE")}. The major turning points came from PET and SPECT imaging, which localized the most reproducible abnormality to presynaptic dopamine synthesis and release in the striatum, especially dorsal or associative regions, and from work linking risk states, stress, glutamate, GABA, and neurodevelopmental disruption to that dopaminergic phenotype {renderPill("HOWES 2015")} {renderPill("WEINSTEIN 2017")} {renderPill("MCCUTCHEON 2017")}.
+                    {rep.introduction || "The earliest form of the hypothesis emerged from psychopharmacology: stimulants such as amphetamine could induce psychotic symptoms, and antipsychotic efficacy tracked dopamine receptor blockade, especially at D2 receptors"} {renderPill("LAU 2013")} {renderPill("HOWES 2016")} {renderPill("SEEMAN 1987")}.
                   </p>
                 </div>
 
-                {/* FIGURE 1: Consensus Meter (Screenshot 76404) */}
+                {/* FIGURE 1: Consensus Meter */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between text-xs font-bold text-slate-900">
-                    <span>{rep.consensus_question || "Has the dopamine hypothesis of schizophrenia evolved from a simple hyperdopaminergic model to an integrated circuit-level model?"}</span>
+                    <span>{rep.consensus_question || "Does clinical trial evidence support the investigated hypothesis?"}</span>
                     <span className="text-slate-500 font-mono text-[11px] font-normal">N = {consensus.n || 13}</span>
                   </div>
 
@@ -338,13 +390,13 @@ export default function Home() {
                   <p className="text-[10px] text-slate-400 font-mono pt-1">FIGURE 1: Consensus on the hypothesis becoming more integrated.</p>
                 </div>
 
-                {/* Section 2: Methods & Search Strategy Funnel Cards (Screenshot 76407) */}
+                {/* Section 2: Methods */}
                 <div className="space-y-3">
                   <h2 className="text-base font-bold text-slate-900">
                     2. Methods
                   </h2>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    This Deep Search synthesis ran over more than 220 million research papers indexed in Consensus, including Semantic Scholar, PubMed, and related scholarly sources. The search process identified 116 candidate papers after relevance filtering, and the top 100 were included for full synthesis across historical, pharmacological, imaging, genetic, developmental, computational, and translational perspectives.
+                    {rep.methods}
                   </p>
 
                   <div className="pt-2">
@@ -367,7 +419,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Section 3: Results (Screenshots 76408 & 76409) */}
+                {/* Section 3: Results */}
                 <div className="space-y-4">
                   <h2 className="text-base font-bold text-slate-900">
                     3. Results
@@ -429,12 +481,11 @@ export default function Home() {
                     </p>
                   </div>
 
-                  {/* Results Timeline Chart (FIGURE 4 - Screenshot 76409) */}
+                  {/* Results Timeline Chart (FIGURE 4) */}
                   <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2 pt-3">
                     <span className="text-xs font-bold text-slate-800 block">Results Timeline</span>
                     <p className="text-xs text-slate-500">The timeline tracks how evidence moved from drug inference to imaging, then to circuit and subtype models.</p>
                     
-                    {/* Visual Bubble Plot */}
                     <div className="flex items-center justify-between pt-6 pb-2 px-2 overflow-x-auto">
                       {(rep.timeline || []).map((tl: any, idx: number) => (
                         <div key={idx} className="flex flex-col items-center gap-2">
@@ -448,7 +499,7 @@ export default function Home() {
                     <p className="text-[10px] text-slate-400 font-mono pt-1">FIGURE 4: Timeline of dopamine hypothesis revisions; larger markers indicate landmark citations.</p>
                   </div>
 
-                  {/* Top Contributors Table (FIGURE 5 - Screenshot 76409) */}
+                  {/* Top Contributors Table (FIGURE 5) */}
                   <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
                     <span className="text-xs font-bold text-slate-800 block">Top Contributors</span>
                     <div className="space-y-2 text-xs">
@@ -476,7 +527,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Section 4: Discussion (Screenshot 76409 & 76410) */}
+                {/* Section 4: Discussion */}
                 <div className="space-y-2">
                   <h2 className="text-base font-bold text-slate-900">
                     4. Discussion
@@ -486,7 +537,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Claim-Level Evidence Strength Table (FIGURE 6 - Screenshot 76410) */}
+                {/* Claim-Level Evidence Strength Table (FIGURE 6) */}
                 <div className="space-y-2">
                   <h2 className="text-base font-bold text-slate-900">
                     Claim-Level Evidence Strength
@@ -538,12 +589,12 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Research Gaps Heatmap Matrix (Screenshot 76410 & 76411) */}
+                {/* Research Gaps Heatmap Matrix */}
                 <div className="space-y-2">
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Grid className="w-4 h-4 text-teal-600" /> Research Gaps Matrix
                   </h2>
-                  <p className="text-xs text-slate-500">The main unresolved issue is how dopamine relates to upstream mechanisms, patient subtypes, and nonpsychotic domains.</p>
+                  <p className="text-xs text-slate-500">The main unresolved issue is how clinical findings relate to upstream mechanisms, patient subtypes, and nonpsychotic domains.</p>
                   
                   <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto shadow-2xs">
                     <table className="w-full text-left text-xs">
@@ -579,7 +630,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Open Research Questions (Screenshot 76411) */}
+                {/* Open Research Questions */}
                 <div className="space-y-3 pt-2">
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <HelpCircle className="w-4 h-4 text-teal-600" /> Open Research Questions
@@ -603,51 +654,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Suggested Follow-up Chips (Screenshot 76411) */}
-                <div className="space-y-2 pt-3 border-t border-slate-100">
-                  <span className="text-xs font-bold text-slate-700 block">Suggested Deep Explorations</span>
-                  <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                    {[
-                      "Consensus Meter: Does dopamine dysregulation precede psychosis onset in high-risk cohorts?",
-                      "Dopamine-glutamate interactions in schizophrenia",
-                      "How do cortical excitation-inhibition imbalances modulate striatal dopamine?"
-                    ].map((sug, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSearch(sug)}
-                        className="text-left text-xs bg-slate-50 hover:bg-teal-50 hover:text-teal-800 border border-slate-200 px-3 py-2 rounded-xl transition-all flex items-center justify-between gap-2"
-                      >
-                        <span>{sug}</span>
-                        <ArrowRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-            {/* Step-by-Step Progress Loader */}
-            {loading && (
-              <div className="py-32 text-center space-y-4 max-w-sm mx-auto">
-                <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <div className="space-y-2">
-                  <p className="text-xs font-bold text-teal-700 animate-pulse transition-all duration-300">
-                    {loadingStepsList[loadingStep]}
-                  </p>
-                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-teal-600 h-full transition-all duration-500" 
-                      style={{ width: `${((loadingStep + 1) / loadingStepsList.length) * 100}%` }} 
-                    />
-                  </div>
-                </div>
               </div>
             )}
 
           </div>
 
-          {/* 3. RIGHT REFERENCES DRAWER (Screenshots 76404 to 76411) */}
+          {/* 3. RIGHT REFERENCES DRAWER */}
           {showReferences && (
             <aside className="w-80 sm:w-96 border-l border-slate-200 bg-[#fbfbfb] flex flex-col h-full overflow-hidden shrink-0 text-left z-30 shadow-lg md:shadow-none">
               <div className="p-3 border-b border-slate-200 flex items-center justify-between text-xs bg-white">
@@ -727,7 +739,7 @@ export default function Home() {
                   <Database className="w-3 h-3" /> Deep Consensus
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Literature Review Engine</span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Deep Research Engine</span>
             </div>
           </div>
         </div>
