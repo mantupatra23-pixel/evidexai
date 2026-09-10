@@ -5,7 +5,7 @@ import {
   Search, ArrowRight, ExternalLink, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  ShieldCheck, FileSearch, Loader2
+  ShieldCheck, FileSearch, Loader2, AlertCircle
 } from "lucide-react";
 
 export default function Home() {
@@ -15,6 +15,8 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
+  const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
@@ -43,6 +45,7 @@ export default function Home() {
     setLoading(true);
     setData(null);
     setSelectedStudy(null);
+    setToastMessage(null);
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
       const json = await res.json();
@@ -67,16 +70,58 @@ export default function Home() {
     }
   };
 
-  const getPdfUrl = (item: any) => {
-    let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
-    if (item.pmc_id) endpoint += `&pmc_id=${encodeURIComponent(item.pmc_id)}`;
-    if (item.doi) endpoint += `&doi=${encodeURIComponent(item.doi)}`;
-    return endpoint;
+  const handlePdfClick = async (item: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloadingPmid(item.pmid);
+    
+    try {
+      let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
+      if (item.pmc_id) endpoint += `&pmc_id=${encodeURIComponent(item.pmc_id)}`;
+      if (item.doi) endpoint += `&doi=${encodeURIComponent(item.doi)}`;
+
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        // If locked/restricted, fallback gracefully to in-app reader modal instead of showing json error
+        setDownloadingPmid(null);
+        setSelectedStudy(item);
+        setToastMessage("Full text locked by journal. Showing in-app evidence abstract.");
+        setTimeout(() => setToastMessage(null), 4000);
+        return;
+      }
+
+      const blob = await res.blob();
+      if (blob.size < 1000) {
+        setDownloadingPmid(null);
+        setSelectedStudy(item);
+        return;
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Evidex_Clinical_PMID_${item.pmid}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setSelectedStudy(item);
+    } finally {
+      setDownloadingPmid(null);
+    }
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
       
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {sidebarOpen && (
         <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />
       )}
@@ -273,16 +318,19 @@ export default function Home() {
 
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {item.is_open_access && (
-                        <a
-                          href={getPdfUrl(item)}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          onClick={(e) => handlePdfClick(item, e)}
+                          disabled={downloadingPmid === item.pmid}
                           className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
                           title="Download Free PDF"
                         >
-                          <Download className="w-3 h-3" />
-                          <span>PDF</span>
-                        </a>
+                          {downloadingPmid === item.pmid ? (
+                            <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                          ) : (
+                            <Download className="w-3 h-3" />
+                          )}
+                          <span>{downloadingPmid === item.pmid ? "Saving..." : "PDF"}</span>
+                        </button>
                       )}
                       
                       <button
@@ -451,15 +499,18 @@ export default function Home() {
                 </button>
 
                 {selectedStudy.is_open_access && (
-                  <a
-                    href={getPdfUrl(selectedStudy)}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={(e) => handlePdfClick(selectedStudy, e)}
+                    disabled={downloadingPmid === selectedStudy.pmid}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download PDF</span>
-                  </a>
+                    {downloadingPmid === selectedStudy.pmid ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    <span>{downloadingPmid === selectedStudy.pmid ? "Downloading..." : "Download PDF"}</span>
+                  </button>
                 )}
               </div>
             </div>
