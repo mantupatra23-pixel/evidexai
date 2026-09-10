@@ -15,7 +15,6 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
-  const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
@@ -68,41 +67,11 @@ export default function Home() {
     }
   };
 
-  const downloadDirectPdf = async (item: any, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setDownloadingPmid(item.pmid);
-
-    try {
-      let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
-      if (item.pmc_id) endpoint += `&pmc_id=${encodeURIComponent(item.pmc_id)}`;
-      if (item.doi) endpoint += `&doi=${encodeURIComponent(item.doi)}`;
-
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        // Fallback gracefully to in-app clinical reader
-        setSelectedStudy(item);
-        return;
-      }
-
-      const blob = await response.blob();
-      if (blob.size < 1000) {
-        setSelectedStudy(item);
-        return;
-      }
-
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = `Evidex_Clinical_PMID_${item.pmid}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(downloadUrl);
-      document.body.removeChild(a);
-    } catch (err) {
-      setSelectedStudy(item);
-    } finally {
-      setDownloadingPmid(null);
-    }
+  const getPdfUrl = (item: any) => {
+    let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
+    if (item.pmc_id) endpoint += `&pmc_id=${encodeURIComponent(item.pmc_id)}`;
+    if (item.doi) endpoint += `&doi=${encodeURIComponent(item.doi)}`;
+    return endpoint;
   };
 
   return (
@@ -302,21 +271,18 @@ export default function Home() {
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
                     <span className="truncate pr-2 font-medium">{item.source} • {item.pubdate}</span>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {item.is_open_access && (
-                        <button
-                          onClick={(e) => downloadDirectPdf(item, e)}
-                          disabled={downloadingPmid === item.pmid}
+                        <a
+                          href={getPdfUrl(item)}
+                          target="_blank"
+                          rel="noreferrer"
                           className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
                           title="Download Free PDF"
                         >
-                          {downloadingPmid === item.pmid ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
-                          ) : (
-                            <Download className="w-3 h-3" />
-                          )}
-                          <span>{downloadingPmid === item.pmid ? "Loading..." : "PDF"}</span>
-                        </button>
+                          <Download className="w-3 h-3" />
+                          <span>PDF</span>
+                        </a>
                       )}
                       
                       <button
@@ -485,18 +451,15 @@ export default function Home() {
                 </button>
 
                 {selectedStudy.is_open_access && (
-                  <button
-                    onClick={() => downloadDirectPdf(selectedStudy)}
-                    disabled={downloadingPmid === selectedStudy.pmid}
+                  <a
+                    href={getPdfUrl(selectedStudy)}
+                    target="_blank"
+                    rel="noreferrer"
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >
-                    {downloadingPmid === selectedStudy.pmid ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Download className="w-3.5 h-3.5" />
-                    )}
-                    <span>{downloadingPmid === selectedStudy.pmid ? "Loading..." : "Download PDF"}</span>
-                  </button>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </a>
                 )}
               </div>
             </div>
