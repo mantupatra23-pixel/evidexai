@@ -15,83 +15,76 @@ except ImportError:
         GROQ_API_KEY, GEMINI_API_KEY, EXPERIENTIAL_FREE_MODELS
     )
 
-ADVANCED_REPORT_PROMPT = (
-    "You are an elite clinical research synthesis scientist and author for top journals (NEJM, Lancet). "
-    "Given the PubMed clinical studies, produce a rich, exhaustive Consensus-style synthesis report. "
-    "You MUST return ONLY valid JSON matching this schema:\n"
+SYSTEM_PROMPT = (
+    "You are an elite clinical research synthesis scientist. Generate an exhaustive, publication-grade Consensus report. "
+    "Use micro-citations inline in ALL CAPS [AUTHOR YEAR] matching the provided studies. "
+    "Return ONLY valid JSON matching this schema:\n"
     "{\n"
-    "  \"title\": \"Comprehensive clinical topic title\",\n"
-    "  \"summary_narrative\": \"Extensive introductory narrative synthesis citing author names and years...\",\n"
-    "  \"definition_and_structure\": \"Detailed definition, biological mechanism, and protocol guidelines...\",\n"
+    "  \"title\": \"Title of Report\",\n"
+    "  \"pico\": {\"population\": \"...\", \"intervention\": \"...\", \"comparator\": \"...\", \"outcome\": \"...\"},\n"
+    "  \"lead_paragraph\": \"In-depth academic overview with inline [AUTHOR YEAR] citations...\",\n"
+    "  \"definition_and_structure\": \"Definition, formal standards (e.g. CARE guidelines), and reporting canonical schema...\",\n"
     "  \"table\": {\n"
-    "    \"columns\": [\"Clinical Component / Intervention\", \"Observed Findings & Dosage\", \"Source & Evidence Level\"],\n"
+    "    \"columns\": [\"Structural Component\", \"Description\", \"Source\"],\n"
     "    \"rows\": [\n"
-    "      [\"Component 1\", \"Efficacy / Description\", \"Author et al. (Year)\"],\n"
-    "      [\"Component 2\", \"Efficacy / Description\", \"Author et al. (Year)\"],\n"
-    "      [\"Component 3\", \"Efficacy / Description\", \"Author et al. (Year)\"]\n"
+    "      [\"Abstract\", \"Brief summary, typically <=150 words, factual with no opinions\", \"[AUTHOR YEAR]\"],\n"
+    "      [\"Introduction\", \"Concise overview citing relevant literature; states what is known and unknown\", \"[AUTHOR YEAR]\"],\n"
+    "      [\"Case Presentation\", \"Chronological narrative with demographics, history, exam findings, interventions\", \"[AUTHOR YEAR]\"],\n"
+    "      [\"Discussion\", \"Literature review, justification of uniqueness, limitations, and clinical lessons\", \"[AUTHOR YEAR]\"],\n"
+    "      [\"Conclusion\", \"Take-home message and educational value for medical practice\", \"[AUTHOR YEAR]\"]\n"
     "    ]\n"
     "  },\n"
-    "  \"key_merits\": [\"Bullet point 1 with clinical significance\", \"Bullet point 2 with pharmacological insights\", \"Bullet point 3\"],\n"
-    "  \"limitations_and_biases\": [\"Heterogeneity / small sample limitations\", \"Risk of publication bias\", \"Demographic gaps\"],\n"
-    "  \"future_directions\": \"Actionable translational medicine guidance for clinicians and upcoming prospective trials.\",\n"
-    "  \"suggested_followups\": [\"Follow-up clinical question 1?\", \"Follow-up comparison question 2?\", \"Safety profile inquiry?\"],\n"
-    "  \"consensus\": {\"yes\": 72, \"inconclusive\": 18, \"no\": 10}\n"
+    "  \"merits_and_limitations\": {\n"
+    "    \"narrative\": \"Case reports have historically driven major medical discoveries...\",\n"
+    "    \"key_merits\": [\n"
+    "      \"Detecting novel clinical presentations and generating hypotheses for future clinical trials [AUTHOR YEAR]\",\n"
+    "      \"Pharmacovigilance: identifying rare adverse and beneficial drug effects [AUTHOR YEAR]\",\n"
+    "      \"Educational value for trainees and early-career researchers as a foundational exercise [AUTHOR YEAR]\"\n"
+    "    ],\n"
+    "    \"limitations\": [\n"
+    "      \"Occupies the lowest level in the evidence hierarchy without control cohorts [AUTHOR YEAR]\",\n"
+    "      \"Inability to establish definitive cause-effect relationships or quantify relative risk [AUTHOR YEAR]\",\n"
+    "      \"High risk of publication bias and over-interpretation of atypical patient courses [AUTHOR YEAR]\"\n"
+    "    ]\n"
+    "  },\n"
+    "  \"future_directions\": \"Discussion of systematic registries, CARE checklist adherence, and digital case repositories...\",\n"
+    "  \"consensus\": {\"yes\": 20, \"inconclusive\": 75, \"no\": 5}\n"
     "}"
 )
 
 async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) -> dict:
     default_payload = {
-        "title": "Clinical Synthesis and Evidence Appraisal",
-        "summary_narrative": "A detailed synthesis of indexed human clinical trials assessing intervention efficacy and therapeutic outcomes across monitored cohorts.",
-        "definition_and_structure": "Standardized clinical assessment protocols adhere to randomized controlled criteria, evaluating validated biomarkers and endpoints.",
+        "title": "Clinical Case Reports in Medical Literature",
+        "pico": {"population": "Individual clinical patients", "intervention": "Specific diagnostic or therapeutic course", "comparator": "Standard presentation", "outcome": "Documented resolution and educational value"},
+        "lead_paragraph": "A clinical case report is a detailed narrative documenting a medical problem experienced by one or more patients, written for medical, scientific, or educational purposes. Case reports typically involve three or fewer patients, while case series involve more than three patients. The genre dates back centuries, serving as a foundational communication channel for clinical practice.",
+        "definition_and_structure": "Case reports are most often naturalistic and descriptive, though they can occasionally be prospective and experimental. They are formal summaries of a unique patient and illness, including presenting signs, symptoms, diagnostic studies, treatment course, and outcome.",
         "table": {
-            "columns": ["Component / Variable", "Clinical Finding", "Evidence Source"],
+            "columns": ["Structural Component", "Description", "Source"],
             "rows": [
-                ["Primary Intervention", "Statistically significant endpoint benefit demonstrated", "Clinical Cohort Analysis"],
-                ["Secondary Outcomes", "Favorable tolerability profile observed across trials", "Systematic Review"],
-                ["Safety Margin", "Minimal adverse events reported in monitored patients", "Human RCTs"]
+                ["Abstract", "Brief summary, typically <=150 words, factual with no opinions", "CARE Guideline"],
+                ["Introduction", "Concise overview citing relevant literature; states what is known and unknown", "EQUATOR Network"],
+                ["Case Presentation", "Chronological narrative with demographics, history, exam findings, interventions", "Clinical Consensus"],
+                ["Discussion", "Literature review, justification of uniqueness, limitations, and lessons", "Peer-Reviewed Literature"],
+                ["Conclusion", "Take-home message and educational value", "Evidence Hierarchy"]
             ]
         },
-        "key_merits": [
-            "Demonstrated primary efficacy across multi-center cohorts",
-            "Favorable pharmacodynamic tolerability and reduced adverse incident rate",
-            "Reproducible clinical outcome endpoints in peer-reviewed publications"
-        ],
-        "limitations_and_biases": [
-            "Variable follow-up periods across trial subgroups",
-            "Need for larger multi-ethnic prospective validation studies",
-            "Potential funding heterogeneity among commercial sponsors"
-        ],
-        "future_directions": "Ongoing prospective phase III/IV trials are indicated to establish personalized dosing protocols and verify long-term morbidity reduction.",
-        "suggested_followups": [
-            "What are the long-term safety endpoints observed in extended cohorts?",
-            "How does this intervention compare directly to alternative first-line therapies?",
-            "What specific patient subgroups exhibit the highest therapeutic response?"
-        ],
-        "consensus": {"yes": 75, "inconclusive": 15, "no": 10}
+        "merits_and_limitations": {
+            "narrative": "Case reports have historically driven major medical discoveries, including early detection of adverse drug interactions and novel symptom patterns.",
+            "key_merits": [
+                "Detecting novelties and generating hypotheses for future clinical studies",
+                "Pharmacovigilance: identifying adverse and beneficial drug effects",
+                "Educational value for trainees and early-career researchers"
+            ],
+            "limitations": [
+                "Occupies the lowest tier in the clinical evidence hierarchy",
+                "Cannot establish definitive cause-effect relationships",
+                "Susceptible to publication bias and over-interpretation"
+            ]
+        },
+        "future_directions": "Adherence to CARE and SCARE reporting checklists continues to advance methodological rigor, fostering centralized open-access case registries for global medical education.",
+        "consensus": {"yes": 25, "inconclusive": 70, "no": 5}
     }
 
-    # Experiential Gateway
-    if EXPERIENTIAL_API_KEY:
-        for model in EXPERIENTIAL_FREE_MODELS:
-            try:
-                res = await client.post(
-                    f"{EXPERIENTIAL_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {EXPERIENTIAL_API_KEY}", "Content-Type": "application/json"},
-                    json={
-                        "model": model,
-                        "messages": [{"role": "system", "content": ADVANCED_REPORT_PROMPT}, {"role": "user", "content": prompt}],
-                        "temperature": 0.2
-                    },
-                    timeout=14.0
-                )
-                if res.status_code == 200:
-                    clean = re.sub(r"^```json\s*|\s*```$", "", res.json()["choices"][0]["message"]["content"], flags=re.MULTILINE).strip()
-                    return json.loads(clean)
-            except Exception:
-                continue
-
-    # Groq Gateway
     if GROQ_API_KEY:
         try:
             res = await client.post(
@@ -99,7 +92,7 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
                 headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
                 json={
                     "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "system", "content": ADVANCED_REPORT_PROMPT}, {"role": "user", "content": prompt}],
+                    "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
                     "temperature": 0.2
                 },
                 timeout=12.0
@@ -110,13 +103,12 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
         except Exception:
             pass
 
-    # Gemini Gateway
     if GEMINI_API_KEY:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
             res = await client.post(
                 url,
-                json={"contents": [{"parts": [{"text": f"{ADVANCED_REPORT_PROMPT}\n\nClinical Evidence:\n{prompt}"}]}]},
+                json={"contents": [{"parts": [{"text": f"{SYSTEM_PROMPT}\n\nEvidence:\n{prompt}"}]}]},
                 timeout=12.0
             )
             if res.status_code == 200:
