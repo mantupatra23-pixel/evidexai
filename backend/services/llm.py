@@ -18,7 +18,7 @@ except ImportError:
 
 SYSTEM_PROMPT = """You are an elite clinical research synthesis scientist and author for top medical journals (NEJM, The Lancet).
 Produce an exhaustive, publication-grade Consensus Clinical Report based on the provided studies.
-Do NOT abbreviate or truncate. Write full, detailed clinical analyses with inline citations formatted as [AUTHOR YEAR] matching the provided studies.
+Write full, detailed clinical analyses with inline citations formatted as [AUTHOR YEAR] matching the provided studies.
 
 You MUST return ONLY valid JSON with this exact structure:
 {
@@ -30,10 +30,10 @@ You MUST return ONLY valid JSON with this exact structure:
     "outcome": "Primary clinical endpoints measured"
   },
   "clinical_bottom_line": "1-3 concise, definitive sentences delivering the clinical takeaway.",
-  "evidence_strength": "HIGH" | "MODERATE" | "LOW",
+  "evidence_strength": "MODERATE",
   "evidence_confidence": 85,
-  "lead_narrative": "A rich, multi-paragraph narrative detailing the clinical problem, historical background, pharmacological context, and synthesis of retrieved evidence with inline [AUTHOR YEAR] citations.",
-  "definition_and_structure": "Comprehensive overview of the pathophysiology, protocol standards (e.g. CARE guidelines, RCT design criteria), and trial methodologies.",
+  "lead_narrative": "A rich, multi-paragraph narrative detailing the clinical problem, historical background, pharmacological context, and synthesis of retrieved evidence with inline citations.",
+  "definition_and_structure": "Comprehensive overview of the pathophysiology, protocol standards, and trial methodologies.",
   "table": {
     "columns": ["Component / Variable", "Clinical Observation & Findings", "Source & Evidence Level"],
     "rows": [
@@ -73,8 +73,8 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
         "clinical_bottom_line": "Current high-quality human trials demonstrate variable efficacy depending on baseline clinical characteristics, with overall evidence indicating nuanced therapeutic benefits.",
         "evidence_strength": "MODERATE",
         "evidence_confidence": 80,
-        "lead_narrative": "Clinical investigation of this intervention across multiple randomized controlled trials demonstrates that therapeutic outcomes are closely tied to patient stratification and baseline risk. Early observational data suggested substantial benefit, but subsequent large-scale blinded trials have refined our understanding, establishing rigorous boundaries for efficacy.",
-        "definition_and_structure": "Standardized evaluation requires strict adherence to randomized controlled trial protocols and reporting guidelines (such as CONSORT and CARE standards). Key physiological markers must be differentiated from hard clinical endpoints to prevent premature conclusions.",
+        "lead_narrative": "Clinical investigation of this intervention across multiple randomized controlled trials demonstrates that therapeutic outcomes are closely tied to patient stratification and baseline risk. Early observational data suggested substantial benefit, but subsequent large-scale blinded trials have refined our understanding, establishing rigorous boundaries for efficacy across monitored cohorts.",
+        "definition_and_structure": "Standardized evaluation requires strict adherence to randomized controlled trial protocols and reporting guidelines. Key physiological markers must be differentiated from hard clinical endpoints to prevent premature conclusions.",
         "table": {
             "columns": ["Component / Variable", "Clinical Observation & Findings", "Source & Evidence Level"],
             "rows": [
@@ -98,7 +98,6 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
         "consensus": {"yes": 25, "inconclusive": 25, "no": 50}
     }
 
-    # 1. Groq Engine (Llama-3.3 70B Versatile)
     if GROQ_API_KEY:
         try:
             res = await client.post(
@@ -116,11 +115,11 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
             )
             if res.status_code == 200:
                 clean = re.sub(r"^```json\s*|\s*```$", "", res.json()["choices"][0]["message"]["content"], flags=re.MULTILINE).strip()
-                return json.loads(clean)
+                parsed = json.loads(clean)
+                return {**default_payload, **parsed}
         except Exception as e:
             print(f"Groq API fallback: {e}")
 
-    # 2. Gemini Engine Fallback
     if GEMINI_API_KEY:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -132,31 +131,9 @@ async def execute_llm_resilient_chain(prompt: str, client: httpx.AsyncClient) ->
             if res.status_code == 200:
                 raw_text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
                 clean = re.sub(r"^```json\s*|\s*```$", "", raw_text, flags=re.MULTILINE).strip()
-                return json.loads(clean)
+                parsed = json.loads(clean)
+                return {**default_payload, **parsed}
         except Exception as e:
             print(f"Gemini API fallback: {e}")
-
-    # 3. Experiential Gateway Fallback
-    if EXPERIENTIAL_API_KEY:
-        for model in EXPERIENTIAL_FREE_MODELS:
-            try:
-                res = await client.post(
-                    f"{EXPERIENTIAL_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {EXPERIENTIAL_API_KEY}", "Content-Type": "application/json"},
-                    json={
-                        "model": model,
-                        "messages": [
-                            {"role": "system", "content": SYSTEM_PROMPT},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "temperature": 0.2
-                    },
-                    timeout=15.0
-                )
-                if res.status_code == 200:
-                    clean = re.sub(r"^```json\s*|\s*```$", "", res.json()["choices"][0]["message"]["content"], flags=re.MULTILINE).strip()
-                    return json.loads(clean)
-            except Exception:
-                continue
 
     return default_payload
