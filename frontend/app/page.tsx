@@ -15,7 +15,6 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
-  const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
@@ -68,37 +67,16 @@ export default function Home() {
     }
   };
 
-  const downloadDirectPdf = async (item: any, e?: React.MouseEvent) => {
+  // Direct client-side bypass to Europe PMC / PMC repository (Never blocked)
+  const downloadDirectPdf = (item: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!item.pmc_id) {
       setSelectedStudy(item);
       return;
     }
-
-    setDownloadingPmid(item.pmid);
-
-    try {
-      const endpoint = `${apiUrl}/api/download-pdf?pmc_id=${encodeURIComponent(item.pmc_id)}&pmid=${item.pmid}`;
-      const res = await fetch(endpoint);
-      if (!res.ok) {
-        setSelectedStudy(item);
-        return;
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Evidex_Clinical_PMID_${item.pmid}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      setSelectedStudy(item);
-    } finally {
-      setDownloadingPmid(null);
-    }
+    const cleanPmsc = item.pmc_id.startsWith("PMC") ? item.pmc_id : `PMC${item.pmc_id}`;
+    const directPdfUrl = `https://europepmc.org/backend/ptpmcrender.fcgi?accid=${cleanPmsc}&blobtype=pdf`;
+    window.open(directPdfUrl, "_blank");
   };
 
   return (
@@ -261,7 +239,7 @@ export default function Home() {
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.summary}</p>
             </div>
 
-            {/* Scanned Studies Cards */}
+            {/* Scanned Human Trials */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                 Scanned Human Trials ({data.total_studies_scanned}) - Tap to read inside Evidex
@@ -302,16 +280,11 @@ export default function Home() {
                       {item.is_open_access && (
                         <button
                           onClick={(e) => downloadDirectPdf(item, e)}
-                          disabled={downloadingPmid === item.pmid}
                           className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
                           title="Download Free Open Access PDF"
                         >
-                          {downloadingPmid === item.pmid ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
-                          ) : (
-                            <Download className="w-3 h-3" />
-                          )}
-                          <span>{downloadingPmid === item.pmid ? "Saving..." : "Free PDF"}</span>
+                          <Download className="w-3 h-3" />
+                          <span>Free PDF</span>
                         </button>
                       )}
                       
@@ -335,7 +308,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Default Landing Recommendations */}
+        {/* Landing Recommendations */}
         {!data && (
           <div className="w-full mt-12 space-y-10 text-left">
             <div className="border-t border-b border-slate-100 py-6 text-center space-y-2">
@@ -482,16 +455,11 @@ export default function Home() {
 
                 {selectedStudy.is_open_access && (
                   <button
-                    onClick={() => downloadDirectPdf(selectedStudy)}
-                    disabled={downloadingPmid === selectedStudy.pmid}
+                    onClick={(e) => downloadDirectPdf(selectedStudy, e)}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >
-                    {downloadingPmid === selectedStudy.pmid ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Download className="w-3.5 h-3.5" />
-                    )}
-                    <span>{downloadingPmid === selectedStudy.pmid ? "Saving..." : "Download Free PDF"}</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Free PDF</span>
                   </button>
                 )}
               </div>
