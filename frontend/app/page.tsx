@@ -5,7 +5,7 @@ import {
   Search, ArrowRight, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  ShieldCheck, FileSearch, Loader2
+  ShieldCheck, FileSearch
 } from "lucide-react";
 
 export default function Home() {
@@ -67,16 +67,9 @@ export default function Home() {
     }
   };
 
-  // Direct client-side bypass to Europe PMC / PMC repository (Never blocked)
-  const downloadDirectPdf = (item: any, e?: React.MouseEvent) => {
+  const openReaderModal = (item: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!item.pmc_id) {
-      setSelectedStudy(item);
-      return;
-    }
-    const cleanPmsc = item.pmc_id.startsWith("PMC") ? item.pmc_id : `PMC${item.pmc_id}`;
-    const directPdfUrl = `https://europepmc.org/backend/ptpmcrender.fcgi?accid=${cleanPmsc}&blobtype=pdf`;
-    window.open(directPdfUrl, "_blank");
+    setSelectedStudy(item);
   };
 
   return (
@@ -248,7 +241,7 @@ export default function Home() {
               {data.studies.map((item: any) => (
                 <div
                   key={item.pmid}
-                  onClick={() => setSelectedStudy(item)}
+                  onClick={() => openReaderModal(item)}
                   className="p-4 rounded-xl border border-slate-200 bg-white hover:border-[#0080ff] hover:shadow-md transition-all space-y-2 cursor-pointer group shadow-2xs"
                 >
                   <div className="flex items-center gap-2 flex-wrap">
@@ -277,28 +270,20 @@ export default function Home() {
                     <span className="truncate pr-2 font-medium">{item.source} • {item.pubdate}</span>
 
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {item.is_open_access && (
-                        <button
-                          onClick={(e) => downloadDirectPdf(item, e)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
-                          title="Download Free Open Access PDF"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span>Free PDF</span>
-                        </button>
-                      )}
-                      
                       <button
                         onClick={(e) => copyCitation(item.pmid, e)}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 text-slate-700 text-[11px] font-medium hover:bg-slate-200"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 text-slate-700 text-[11px] font-medium hover:bg-slate-200"
                       >
                         {copiedPmid === item.pmid ? <CheckCheck className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                         <span>{copiedPmid === item.pmid ? "Copied" : "Cite"}</span>
                       </button>
 
-                      <span className="text-[11px] font-medium text-[#0080ff] group-hover:underline flex items-center gap-0.5 ml-1">
-                        Read <ChevronRight className="w-3 h-3" />
-                      </span>
+                      <button
+                        onClick={(e) => openReaderModal(item, e)}
+                        className="text-[11px] font-semibold text-[#0080ff] hover:underline flex items-center gap-0.5 ml-1 px-2 py-1 bg-blue-50 rounded"
+                      >
+                        Read Analysis <ChevronRight className="w-3 h-3" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -446,22 +431,12 @@ export default function Home() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => copyCitation(selectedStudy.pmid)}
+                  onClick={(e) => copyCitation(selectedStudy.pmid, e)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 shadow-2xs"
                 >
                   {copiedPmid === selectedStudy.pmid ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedPmid === selectedStudy.pmid ? "Copied" : "Copy Citation"}</span>
                 </button>
-
-                {selectedStudy.is_open_access && (
-                  <button
-                    onClick={(e) => downloadDirectPdf(selectedStudy, e)}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Free PDF</span>
-                  </button>
-                )}
               </div>
             </div>
 
