@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
-  Plus, Home as HomeIcon, Filter, Database, Menu, X, BookOpen, 
-  Copy, CheckCheck, Share2, ArrowRight, ArrowUp, Grid, HelpCircle, FileText, Bot
+  Plus, Home as HomeIcon, Menu, X, BookOpen, 
+  Copy, Share2, ArrowRight, ArrowUp, Grid, HelpCircle, FileText, Sparkles
 } from "lucide-react";
 
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [agentStepText, setAgentStepText] = useState("Initializing Multi-Agent Pipeline...");
+  const [loadingStep, setLoadingStep] = useState(0);
   const [report, setReport] = useState<any | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showReferences, setShowReferences] = useState(false);
@@ -22,6 +22,24 @@ export default function Home() {
     "Does aspirin prevent cardiovascular events?"
   ]);
 
+  const loadingStepsList = [
+    "Searching 35M+ PubMed & PMC human records...",
+    "Filtering evidence by study design & relevance...",
+    "Classifying RCTs, meta-analyses, and clinical trials...",
+    "Synthesizing publication-grade consensus report..."
+  ];
+
+  useEffect(() => {
+    let timer: any;
+    if (loading) {
+      setLoadingStep(0);
+      timer = setInterval(() => {
+        setLoadingStep((prev) => (prev < loadingStepsList.length - 1 ? prev + 1 : prev));
+      }, 700);
+    }
+    return () => clearInterval(timer);
+  }, [loading]);
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
   const handleSearch = async (searchQuery?: string) => {
@@ -29,14 +47,10 @@ export default function Home() {
     if (!q.trim()) return;
     setLoading(true);
     setReport(null);
-    setAgentStepText("Planner Agent analyzing query & generating sub-topics...");
 
     if (!recentThreads.includes(q)) {
       setRecentThreads(prev => [q, ...prev.slice(0, 7)]);
     }
-
-    setTimeout(() => setAgentStepText("Multi-Search Agents querying PubMed in parallel..."), 600);
-    setTimeout(() => setAgentStepText("Verifier Agent auditing study quality & filtering data..."), 1200);
 
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
@@ -127,7 +141,7 @@ export default function Home() {
               <Menu className="w-4 h-4" />
             </button>
             <span className="text-xs font-bold text-slate-800 truncate max-w-sm sm:max-w-md">
-              {report ? report.query : "Multi-Agent Consensus Engine"}
+              {report ? report.query : "Clinical Consensus Report Engine"}
             </span>
           </div>
 
@@ -155,10 +169,10 @@ export default function Home() {
                 </div>
                 <div className="space-y-2">
                   <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-                    Multi-Agent Clinical Research
+                    Clinical Research Starts Here
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                    Planner agents plan sub-topics, multi-search agents query PubMed in parallel, and verifier agents audit evidence quality.
+                    Synthesizes 35M+ PubMed human trials into publication-grade consensus reports, methodology tables, and visual evidence appraisals.
                   </p>
                 </div>
 
@@ -190,23 +204,20 @@ export default function Home() {
                   </span>
                 </div>
 
-                {/* Multi-Agent Steps Log Display */}
-                {report.agent_steps && (
-                  <div className="p-4 rounded-2xl bg-[#f0f4f9] border border-slate-200 space-y-2 text-xs">
-                    <div className="flex items-center gap-2 font-bold text-slate-800">
-                      <Bot className="w-4 h-4 text-teal-600 animate-bounce" />
-                      <span>Multi-Agent Execution Pipeline (Planner → Multi-Search → Verifier)</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
-                      {report.agent_steps.map((st: any, i: number) => (
-                        <div key={i} className="bg-white p-2 rounded-xl border border-slate-200 text-slate-600">
-                          <strong className="text-teal-700 block">{st.agent}</strong>
-                          <span className="truncate block">{st.status}</span>
-                        </div>
-                      ))}
-                    </div>
+                {/* Funnel Badge */}
+                <div className="p-4 rounded-2xl bg-[#f0f4f9] border border-slate-200 flex items-center justify-between flex-wrap gap-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
+                    <span className="font-bold text-slate-800">Deep Consensus ({funnel.steps})</span>
                   </div>
-                )}
+                  <div className="flex items-center gap-4 text-slate-600 font-medium font-mono">
+                    <span>Retrieved: <strong className="text-slate-900">{funnel.retrieved}</strong></span>
+                    <span>→</span>
+                    <span>Eligible: <strong className="text-slate-900">{funnel.eligible}</strong></span>
+                    <span>→</span>
+                    <span>Included: <strong className="text-teal-700">{funnel.included}</strong></span>
+                  </div>
+                </div>
 
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 leading-snug">
                   {rep.title || report.query}
@@ -413,11 +424,18 @@ export default function Home() {
             )}
 
             {loading && (
-              <div className="py-28 text-center space-y-4">
+              <div className="py-32 text-center space-y-4 max-w-sm mx-auto">
                 <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-teal-700 animate-pulse">{agentStepText}</p>
-                  <p className="text-[11px] text-slate-400">Multi-Agent workflow running in parallel...</p>
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-teal-700 animate-pulse transition-all duration-300">
+                    {loadingStepsList[loadingStep]}
+                  </p>
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-teal-600 h-full transition-all duration-500" 
+                      style={{ width: `${((loadingStep + 1) / loadingStepsList.length) * 100}%` }} 
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -513,10 +531,10 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-700">+ Corpus: PubMed</span>
                 <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-teal-700 flex items-center gap-1">
-                  <Database className="w-3 h-3" /> Multi-Agent Consensus
+                  <Database className="w-3 h-3" /> Deep Consensus
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Multi-Agent Orchestrator</span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Deep Research Engine</span>
             </div>
           </div>
         </div>
