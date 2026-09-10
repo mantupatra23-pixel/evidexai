@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { 
   Plus, Home as HomeIcon, Menu, X, BookOpen, 
-  Copy, Share2, ArrowRight, ArrowUp, Grid, HelpCircle, FileText, Sparkles
+  Copy, Share2, ArrowRight, ArrowUp, Grid, HelpCircle, FileText, Database
 } from "lucide-react";
 
 export default function Home() {
