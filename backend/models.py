@@ -28,3 +28,15 @@ class SearchLog(Base):
     summary = Column(Text, nullable=True)
     total_scanned = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Bookmark(Base):
+    __tablename__ = "bookmarks"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    pmid = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    journal = Column(String, nullable=True)
+    pubdate = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
