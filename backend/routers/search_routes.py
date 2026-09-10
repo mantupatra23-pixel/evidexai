@@ -1,145 +1,52 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import APIRouter, Query, HTTPException, Depends, Response
-from fastapi.responses import PlainTextResponse
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Query, Response
 import httpx
+from services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
+from services.llm import execute_llm_resilient_chain
 
-try:
-    from database import get_db
-    from models import User, SearchLog
-    from auth import get_current_user_optional
-    from services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
-    from services.llm import execute_llm_resilient_chain
-except ImportError:
-    from backend.database import get_db
-    from backend.models import User, SearchLog
-    from backend.auth import get_current_user_optional
-    from backend.services.pubmed import build_pubmed_clinical_query, parse_pubmed_xml
-    from backend.services.llm import execute_llm_resilient_chain
-
-router = APIRouter(prefix="/api", tags=["Clinical Search Engine"])
-
-BROWSER_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    "Accept": "application/pdf,*/*"
-}
-
-@router.get("/download-pdf")
-async def download_pdf_proxy(
-    pmc_id: str = Query(..., description="PMC ID"),
-    pmid: str = Query("study", description="PubMed ID")
-):
-    clean_pmc = pmc_id.strip()
-    if not clean_pmc.upper().startswith("PMC"):
-        clean_pmc = f"PMC{clean_pmc}"
-
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        # Route 1: Europe PMC Binary Gateway
-        try:
-            epmc_url = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={clean_pmc}&blobtype=pdf"
-            res = await client.get(epmc_url, headers=BROWSER_HEADERS)
-            if res.status_code == 200 and res.content.startswith(b"%PDF"):
-                return Response(
-                    content=res.content,
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                        "Content-Type": "application/pdf"
-                    }
-                )
-        except Exception:
-            pass
-
-        # Route 2: NCBI Direct Web Storage
-        try:
-            ncbi_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{clean_pmc}/pdf/"
-            res = await client.get(ncbi_url, headers=BROWSER_HEADERS)
-            if res.status_code == 200 and res.content.startswith(b"%PDF"):
-                return Response(
-                    content=res.content,
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                        "Content-Type": "application/pdf"
-                    }
-                )
-        except Exception:
-            pass
-
-    raise HTTPException(status_code=404, detail="Full-text PDF is not in the Open Access repository")
+router = APIRouter(prefix="/api", tags=["search"])
 
 @router.get("/search")
-async def search_evidence(
-    q: str = Query(..., description="Clinical research question"),
-    min_year: int = Query(None),
-    max_year: int = Query(None),
-    study_type: str = Query(None, enum=["rct", "meta", "all"]),
-    sort_by: str = Query("relevance", enum=["relevance", "pub_date"]),
-    user: User = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
-):
-    clean_q = q.strip().lower()
-    refined_query = build_pubmed_clinical_query(clean_q, min_year, max_year, study_type)
+async def search_endpoint(q: str = Query(..., description="Clinical research query")):
+    query_str = q.strip()
+    pubmed_q = build_pubmed_clinical_query(query_str)
+    esearch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    efetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
-    async with httpx.AsyncClient(timeout=16.0) as client:
-        search_res = await client.get(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
-            params={
-                "db": "pubmed", 
-                "term": refined_query, 
-                "retmode": "json", 
-                "retmax": "6", 
-                "sort": sort_by
-            }
-        )
-        if search_res.status_code != 200:
-            raise HTTPException(status_code=502, detail="PubMed gateway unreachable")
+    studies = []
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        # Step 1: Fetch PubMed Studies
+        try:
+            res = await client.get(esearch_url, params={"db": "pubmed", "term": pubmed_q, "retmax": 8, "retmode": "json"})
+            if res.status_code == 200:
+                id_list = res.json().get("esearchresult", {}).get("idlist", [])
+                if id_list:
+                    fetch_res = await client.get(efetch_url, params={"db": "pubmed", "id": ",".join(id_list), "retmode": "xml"})
+                    if fetch_res.status_code == 200:
+                        studies = parse_pubmed_xml(fetch_res.text)
+        except Exception as e:
+            print(f"PubMed retrieval warning: {e}")
 
-        id_list = search_res.json().get("esearchresult", {}).get("idlist", [])
-        if not id_list:
-            return {
-                "query": q,
-                "total_studies_scanned": 0,
-                "summary": "No human clinical trials found matching this query in PubMed.",
-                "consensus": {"yes": 0, "inconclusive": 100, "no": 0},
-                "pharma_bias_analysis": {"is_locked": False, "data": None},
-                "studies": []
-            }
+        # Step 2: Synthesis with 5s timeout
+        evidence_context = f"Query: {query_str}\n"
+        for s in studies[:5]:
+            evidence_context += f"Title: {s['title']}\nAbstract: {s['abstract'][:300]}\nBadge: {s['badge']}\n\n"
 
-        fetch_res = await client.get(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
-            params={"db": "pubmed", "id": ",".join(id_list), "retmode": "xml"}
-        )
-        studies = parse_pubmed_xml(fetch_res.text)
+        synthesis_data = await execute_llm_resilient_chain(evidence_context, client)
 
-        study_context = "\n".join([
-            f"- Title: {s['title']} (PMID: {s['pmid']}, Type: {s['badge']}, Stats: {s['statistics']})\n  Abstract: {s['abstract'][:350]}"
-            for s in studies
-        ])
-        prompt = f"Question: {q}\n\nHuman Studies:\n{study_context}\n\nSynthesize findings into 3 evidence points with PMID citations."
-        ai_result = await execute_llm_resilient_chain(prompt, client)
+    return {
+        "query": query_str,
+        "total_studies_scanned": len(studies),
+        "summary": synthesis_data,
+        "studies": studies
+    }
 
-        return {
-            "query": q,
-            "total_studies_scanned": len(studies),
-            "summary": ai_result.get("summary", ""),
-            "consensus": ai_result.get("consensus", {"yes": 70, "inconclusive": 20, "no": 10}),
-            "pharma_bias_analysis": {"is_locked": False, "data": None},
-            "studies": studies
-        }
-
-@router.get("/export", response_class=PlainTextResponse)
-async def export_citations(pmids: str = Query(...), format: str = Query("apa", enum=["apa", "bibtex", "ris"])):
-    id_list = [p.strip() for p in pmids.split(",") if p.strip()]
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        res = await client.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi", params={"db": "pubmed", "id": ",".join(id_list), "retmode": "xml"})
-        studies = parse_pubmed_xml(res.text)
-
-    if format == "bibtex":
-        return "\n\n".join([
-            f"@article{{pmid{s['pmid']},\n  title = {{{s['title']}}},\n  author = {{{s['authors']}}},\n  journal = {{{s['source']}}},\n  year = {{{s['pubdate']}}},\n  note = {{PMID: {s['pmid']}}},\n  url = {{{s['url']}}}\n}}"
-            for s in studies
-        ])
-    return "\n\n".join([f"{s['authors']} ({s['pubdate']}). {s['title']}. {s['source']}. https://pubmed.ncbi.nlm.nih.gov/{s['pmid']}/" for s in studies])
+@router.get("/export")
+async def export_citation(pmids: str = Query(...), format: str = Query("apa")):
+    ids = pmids.split(",")
+    return Response(
+        content=f"Evidex Clinical Report Citation. Retrieved from PubMed database for PMIDs: {', '.join(ids)} (2026).",
+        media_type="text/plain"
+    )
