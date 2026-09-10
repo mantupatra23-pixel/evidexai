@@ -43,11 +43,9 @@ def classify_study_rigorous(title: str, abstract: str, pub_types: list) -> str:
     title_lower = title.lower()
     abstract_lower = abstract.lower()
     
-    # Strict Case Report Guard
     if any(k in title_lower for k in ["a clinical report", "case report", "case series", "a case of", "case study"]):
         return "Case Report"
     
-    # Evidence Hierarchy
     if any("Meta-Analysis" in pt for pt in pub_types) or "meta-analysis" in title_lower:
         return "Meta-Analysis"
     if any("Systematic Review" in pt for pt in pub_types) or "systematic review" in title_lower:
