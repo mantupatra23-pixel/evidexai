@@ -2,11 +2,9 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Query, HTTPException, Depends, Response
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 import httpx
-import json
-import asyncio
 
 try:
     from database import get_db
@@ -25,77 +23,52 @@ router = APIRouter(prefix="/api", tags=["Clinical Search Engine"])
 
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    "Accept": "application/pdf,*/*",
-    "Accept-Encoding": "identity"
+    "Accept": "application/pdf,*/*"
 }
 
 @router.get("/download-pdf")
 async def download_pdf_proxy(
-    pmid: str = Query(..., description="PubMed ID"),
-    pmc_id: str = Query(None, description="PMC ID"),
-    doi: str = Query(None, description="DOI")
+    pmc_id: str = Query(..., description="PMC ID"),
+    pmid: str = Query("study", description="PubMed ID")
 ):
-    """Reliable multi-route binary PDF streamer."""
-    clean_pmc = pmc_id.strip() if pmc_id else ""
-    if clean_pmc and not clean_pmc.upper().startswith("PMC"):
+    clean_pmc = pmc_id.strip()
+    if not clean_pmc.upper().startswith("PMC"):
         clean_pmc = f"PMC{clean_pmc}"
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        # Route 1: Europe PMC Binary Endpoint (Handles most PMC papers reliably)
-        if clean_pmc:
-            try:
-                epmc_url = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={clean_pmc}&blobtype=pdf"
-                res = await client.get(epmc_url, headers=BROWSER_HEADERS)
-                if res.status_code == 200 and res.content.startswith(b"%PDF"):
-                    return Response(
-                        content=res.content,
-                        media_type="application/pdf",
-                        headers={
-                            "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                            "Content-Type": "application/pdf"
-                        }
-                    )
-            except Exception:
-                pass
+        # Route 1: Europe PMC Binary Gateway
+        try:
+            epmc_url = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={clean_pmc}&blobtype=pdf"
+            res = await client.get(epmc_url, headers=BROWSER_HEADERS)
+            if res.status_code == 200 and res.content.startswith(b"%PDF"):
+                return Response(
+                    content=res.content,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                        "Content-Type": "application/pdf"
+                    }
+                )
+        except Exception:
+            pass
 
         # Route 2: NCBI Direct Web Storage
-        if clean_pmc:
-            try:
-                ncbi_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{clean_pmc}/pdf/"
-                res = await client.get(ncbi_url, headers=BROWSER_HEADERS)
-                if res.status_code == 200 and res.content.startswith(b"%PDF"):
-                    return Response(
-                        content=res.content,
-                        media_type="application/pdf",
-                        headers={
-                            "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                            "Content-Type": "application/pdf"
-                        }
-                    )
-            except Exception:
-                pass
+        try:
+            ncbi_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{clean_pmc}/pdf/"
+            res = await client.get(ncbi_url, headers=BROWSER_HEADERS)
+            if res.status_code == 200 and res.content.startswith(b"%PDF"):
+                return Response(
+                    content=res.content,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
+                        "Content-Type": "application/pdf"
+                    }
+                )
+        except Exception:
+            pass
 
-        # Route 3: Unpaywall Open Access Lookup via DOI
-        if doi:
-            try:
-                u_res = await client.get(f"https://api.unpaywall.org/v2/{doi}?email=research@evidex.ai", timeout=8.0)
-                if u_res.status_code == 200:
-                    best_url = u_res.json().get("best_oa_location", {}).get("url_for_pdf")
-                    if best_url:
-                        pdf_res = await client.get(best_url, headers=BROWSER_HEADERS)
-                        if pdf_res.status_code == 200 and pdf_res.content.startswith(b"%PDF"):
-                            return Response(
-                                content=pdf_res.content,
-                                media_type="application/pdf",
-                                headers={
-                                    "Content-Disposition": f'attachment; filename="Evidex_Study_{pmid}.pdf"',
-                                    "Content-Type": "application/pdf"
-                                }
-                            )
-            except Exception:
-                pass
-
-    raise HTTPException(status_code=404, detail="Paper restricted to journal subscribers")
+    raise HTTPException(status_code=404, detail="Full-text PDF is not in the Open Access repository")
 
 @router.get("/search")
 async def search_evidence(

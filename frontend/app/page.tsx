@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { 
-  Search, ArrowRight, ExternalLink, CheckCircle2, 
+  Search, ArrowRight, CheckCircle2, 
   Plus, Home as HomeIcon, Filter, Database, Scale, Table, FileText, 
   Sparkles, Check, ChevronRight, Menu, X, BookOpen, Download, Copy, CheckCheck,
-  ShieldCheck, FileSearch, Loader2, AlertCircle
+  ShieldCheck, FileSearch, Loader2
 } from "lucide-react";
 
 export default function Home() {
@@ -16,7 +16,6 @@ export default function Home() {
   const [selectedStudy, setSelectedStudy] = useState<any | null>(null);
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
   const [downloadingPmid, setDownloadingPmid] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://evidexai.onrender.com";
 
@@ -45,7 +44,6 @@ export default function Home() {
     setLoading(true);
     setData(null);
     setSelectedStudy(null);
-    setToastMessage(null);
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
       const json = await res.json();
@@ -70,32 +68,24 @@ export default function Home() {
     }
   };
 
-  const handlePdfClick = async (item: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDownloadingPmid(item.pmid);
-    
-    try {
-      let endpoint = `${apiUrl}/api/download-pdf?pmid=${item.pmid}`;
-      if (item.pmc_id) endpoint += `&pmc_id=${encodeURIComponent(item.pmc_id)}`;
-      if (item.doi) endpoint += `&doi=${encodeURIComponent(item.doi)}`;
+  const downloadDirectPdf = async (item: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!item.pmc_id) {
+      setSelectedStudy(item);
+      return;
+    }
 
+    setDownloadingPmid(item.pmid);
+
+    try {
+      const endpoint = `${apiUrl}/api/download-pdf?pmc_id=${encodeURIComponent(item.pmc_id)}&pmid=${item.pmid}`;
       const res = await fetch(endpoint);
       if (!res.ok) {
-        // If locked/restricted, fallback gracefully to in-app reader modal instead of showing json error
-        setDownloadingPmid(null);
         setSelectedStudy(item);
-        setToastMessage("Full text locked by journal. Showing in-app evidence abstract.");
-        setTimeout(() => setToastMessage(null), 4000);
         return;
       }
 
       const blob = await res.blob();
-      if (blob.size < 1000) {
-        setDownloadingPmid(null);
-        setSelectedStudy(item);
-        return;
-      }
-
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -114,14 +104,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
       
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700">
-          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {sidebarOpen && (
         <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity" />
       )}
@@ -247,7 +229,7 @@ export default function Home() {
         {data && (
           <div className="w-full mt-8 space-y-5 text-left">
             
-            {/* Dynamic Consensus Agreement Meter */}
+            {/* Consensus Meter */}
             {data.consensus && (
               <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
@@ -279,7 +261,7 @@ export default function Home() {
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.summary}</p>
             </div>
 
-            {/* Scanned Human Trials */}
+            {/* Scanned Studies Cards */}
             <div className="space-y-3">
               <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                 Scanned Human Trials ({data.total_studies_scanned}) - Tap to read inside Evidex
@@ -319,17 +301,17 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {item.is_open_access && (
                         <button
-                          onClick={(e) => handlePdfClick(item, e)}
+                          onClick={(e) => downloadDirectPdf(item, e)}
                           disabled={downloadingPmid === item.pmid}
                           className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100 shadow-2xs transition-colors"
-                          title="Download Free PDF"
+                          title="Download Free Open Access PDF"
                         >
                           {downloadingPmid === item.pmid ? (
                             <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
                           ) : (
                             <Download className="w-3 h-3" />
                           )}
-                          <span>{downloadingPmid === item.pmid ? "Saving..." : "PDF"}</span>
+                          <span>{downloadingPmid === item.pmid ? "Saving..." : "Free PDF"}</span>
                         </button>
                       )}
                       
@@ -353,7 +335,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Landing Recommendations */}
+        {/* Default Landing Recommendations */}
         {!data && (
           <div className="w-full mt-12 space-y-10 text-left">
             <div className="border-t border-b border-slate-100 py-6 text-center space-y-2">
@@ -500,7 +482,7 @@ export default function Home() {
 
                 {selectedStudy.is_open_access && (
                   <button
-                    onClick={(e) => handlePdfClick(selectedStudy, e)}
+                    onClick={() => downloadDirectPdf(selectedStudy)}
                     disabled={downloadingPmid === selectedStudy.pmid}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors"
                   >
@@ -509,7 +491,7 @@ export default function Home() {
                     ) : (
                       <Download className="w-3.5 h-3.5" />
                     )}
-                    <span>{downloadingPmid === selectedStudy.pmid ? "Downloading..." : "Download PDF"}</span>
+                    <span>{downloadingPmid === selectedStudy.pmid ? "Saving..." : "Download Free PDF"}</span>
                   </button>
                 )}
               </div>

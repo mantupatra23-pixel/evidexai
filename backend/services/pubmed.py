@@ -1,5 +1,4 @@
 import xml.etree.ElementTree as ET
-import httpx
 import re
 
 KNOWN_PHARMA = [
@@ -99,16 +98,13 @@ def parse_pubmed_xml(xml_text: str):
             year_node = article.find(".//JournalIssue/PubDate/Year") or article.find(".//DateCompleted/Year")
             pubdate = year_node.text if year_node is not None else "Recent"
 
-            # PMC ID and DOI Extractors
+            # Strict PMC-ID Check: ONLY genuine free open-access papers have PMC ID
             pmc_id = None
-            doi = None
             for article_id in article.findall(".//ArticleIdList/ArticleId"):
-                id_type = article_id.get("IdType")
-                if id_type == "pmc":
+                if article_id.get("IdType") == "pmc":
                     raw_pmc = article_id.text.strip()
                     pmc_id = raw_pmc if raw_pmc.upper().startswith("PMC") else f"PMC{raw_pmc}"
-                elif id_type == "doi":
-                    doi = article_id.text.strip()
+                    break
 
             authors = []
             for author in article.findall(".//AuthorList/Author"):
@@ -123,10 +119,12 @@ def parse_pubmed_xml(xml_text: str):
             combined = f"{coi_text} {' '.join(grants)} {abstract}".lower()
             sponsors = list(set([p.title() for p in KNOWN_PHARMA if p in combined]))
 
+            # Genuine Open Access check: True ONLY when PMC full text is present
+            has_free_full_text = bool(pmc_id)
+
             studies.append({
                 "pmid": pmid,
                 "pmc_id": pmc_id,
-                "doi": doi,
                 "title": title,
                 "authors": author_str,
                 "abstract": abstract[:1200],
@@ -135,7 +133,7 @@ def parse_pubmed_xml(xml_text: str):
                 "source": source,
                 "pubdate": pubdate,
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-                "is_open_access": bool(pmc_id or doi),
+                "is_open_access": has_free_full_text,
                 "statistics": extract_quantitative_stats(abstract),
                 "funding_audit": {
                     "bias_risk": "High" if len(sponsors) >= 2 else ("Moderate" if len(sponsors) == 1 else "Low (Independent)"),
