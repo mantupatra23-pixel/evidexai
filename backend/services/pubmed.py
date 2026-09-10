@@ -21,15 +21,33 @@ SYNONYM_MAP = {
     "cholesterol": "hyperlipidemia OR dyslipidemia"
 }
 
+def build_pubmed_clinical_query(user_query: str, min_year: int = None, max_year: int = None, study_type: str = None) -> str:
+    processed = user_query.strip().lower()
+    for slang, formal in SYNONYM_MAP.items():
+        processed = re.sub(rf"\b{re.escape(slang)}\b", f"({formal})", processed)
+    
+    query = f"({processed}) AND (humans[Filter])"
+    if min_year and max_year:
+        query += f" AND ({min_year}:{max_year}[dp])"
+    elif min_year:
+        query += f" AND ({min_year}:3000[dp])"
+
+    if study_type == "rct":
+        query += " AND (randomized controlled trial[Publication Type])"
+    elif study_type == "meta":
+        query += " AND (meta-analysis[Publication Type] OR systematic review[Publication Type])"
+
+    return query
+
 def classify_study_rigorous(title: str, abstract: str, pub_types: list) -> str:
     title_lower = title.lower()
     abstract_lower = abstract.lower()
     
-    # 1. Strict Case Report Guard
+    # Strict Case Report Guard
     if any(k in title_lower for k in ["a clinical report", "case report", "case series", "a case of", "case study"]):
         return "Case Report"
     
-    # 2. Evidence Hierarchy
+    # Evidence Hierarchy
     if any("Meta-Analysis" in pt for pt in pub_types) or "meta-analysis" in title_lower:
         return "Meta-Analysis"
     if any("Systematic Review" in pt for pt in pub_types) or "systematic review" in title_lower:
@@ -124,7 +142,6 @@ def parse_pubmed_xml(xml_text: str):
             coi_node = article.find(".//CoiStatement")
             coi_text = "".join(coi_node.itertext()).strip() if coi_node is not None else ""
 
-            # Extract 1-sentence key takeaway
             sentences = [s.strip() for s in abstract.split(".") if len(s.strip()) > 25]
             key_takeaway = sentences[-1] if sentences else abstract[:150]
 
