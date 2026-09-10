@@ -1,11 +1,41 @@
 import xml.etree.ElementTree as ET
 import re
 
+SYNONYM_MAP = {
+    "high bp": "hypertension",
+    "high blood pressure": "hypertension",
+    "sugar": "type 2 diabetes mellitus",
+    "heart attack": "myocardial infarction",
+    "stroke": "cerebrovascular accident",
+    "kidney disease": "chronic kidney disease",
+    "kidney failure": "renal impairment OR renal failure",
+    "weight loss": "obesity management OR weight reduction",
+    "blood clot": "thrombosis OR thromboembolism",
+    "cholesterol": "hyperlipidemia OR dyslipidemia"
+}
+
+def build_pubmed_clinical_query(user_query: str, min_year: int = None, max_year: int = None, study_type: str = None) -> str:
+    processed = user_query.strip().lower()
+    for slang, formal in SYNONYM_MAP.items():
+        processed = re.sub(rf"\b{re.escape(slang)}\b", f"({formal})", processed)
+    
+    query = f"({processed}) AND (humans[Filter])"
+    if min_year and max_year:
+        query += f" AND ({min_year}:{max_year}[dp])"
+    elif min_year:
+        query += f" AND ({min_year}:3000[dp])"
+
+    if study_type == "rct":
+        query += " AND (randomized controlled trial[Publication Type])"
+    elif study_type == "meta":
+        query += " AND (meta-analysis[Publication Type] OR systematic review[Publication Type])"
+
+    return query
+
 def expand_clinical_subqueries(user_query: str) -> list:
     q = user_query.strip().lower()
-    queries = [f"({q}) AND (humans[Filter])"]
+    queries = [build_pubmed_clinical_query(q)]
     
-    # Automatic sub-query expansion for deep research breadth
     if "vitamin d" in q and "fracture" in q:
         queries.append("vitamin d supplementation fracture elderly randomized controlled trial")
         queries.append("vitamin d3 calcium bone density older adults meta-analysis")
