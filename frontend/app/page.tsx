@@ -15,6 +15,7 @@ export default function Home() {
   const [report, setReport] = useState<any | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showReferences, setShowReferences] = useState(false);
+  const [referenceTab, setReferenceTab] = useState<string>("ALL");
   const [copiedPmid, setCopiedPmid] = useState<string | null>(null);
   const [recentThreads, setRecentThreads] = useState<string[]>([
     "Does vitamin D supplementation prevent fractures in elderly?",
@@ -61,6 +62,11 @@ export default function Home() {
 
   const rep = report?.summary || {};
   const pico = rep.pico || {};
+
+  const filteredStudies = report?.studies?.filter((s: any) => {
+    if (referenceTab === "ALL") return true;
+    return s.evidence_relationship === referenceTab;
+  }) || [];
 
   return (
     <div className="flex h-screen w-screen bg-[#f9fafb] text-slate-900 font-sans overflow-hidden antialiased">
@@ -243,7 +249,7 @@ export default function Home() {
                   </div>
 
                   <p className="text-sm sm:text-base font-semibold text-slate-900 leading-relaxed">
-                    {rep.clinical_bottom_line || rep.summary_narrative || "Clinical outcomes indicate nuanced efficacy depending on baseline characteristics."}
+                    {rep.clinical_bottom_line}
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-200/70 text-xs">
@@ -290,7 +296,7 @@ export default function Home() {
                     Clinical Synthesis & Evidence Evaluation
                   </h2>
                   <p className="text-sm sm:text-base text-slate-800 leading-relaxed whitespace-pre-line">
-                    {rep.lead_narrative || rep.summary || "Comprehensive analysis of human clinical trials demonstrates nuanced physiological responses depending on baseline status and intervention dosage."}
+                    {rep.lead_narrative}
                   </p>
                 </div>
 
@@ -339,7 +345,7 @@ export default function Home() {
                       <CheckCircle2 className="w-4 h-4 text-teal-600" /> Key Clinical Merits
                     </h4>
                     <ul className="space-y-2 text-xs text-slate-700">
-                      {(rep.key_merits || ["Demonstrated primary efficacy boundaries across large multi-center randomized cohorts.", "Established robust safety parameters and tolerability in extended follow-up trials."]).map((m: string, i: number) => (
+                      {rep.key_merits?.map((m: string, i: number) => (
                         <li key={i} className="flex items-start gap-2 leading-relaxed">
                           <span className="text-teal-600 font-bold shrink-0">•</span>
                           <span>{m}</span>
@@ -353,7 +359,7 @@ export default function Home() {
                       <AlertTriangle className="w-4 h-4 text-amber-600" /> Limitations & Biases
                     </h4>
                     <ul className="space-y-2 text-xs text-slate-700">
-                      {(rep.limitations || ["Heterogeneity in dosing regimens and baseline clinical status across monitored trials.", "Need for longer prospective registries to evaluate long-term outcomes."]).map((l: string, i: number) => (
+                      {rep.limitations?.map((l: string, i: number) => (
                         <li key={i} className="flex items-start gap-2 leading-relaxed">
                           <span className="text-amber-600 font-bold shrink-0">•</span>
                           <span>{l}</span>
@@ -388,17 +394,29 @@ export default function Home() {
 
           {report && showReferences && (
             <aside className="w-80 sm:w-96 border-l border-slate-200 bg-[#fbfbfb] flex flex-col h-full overflow-hidden shrink-0 text-left z-30 shadow-lg md:shadow-none animate-in slide-in-from-right duration-200">
-              <div className="p-3.5 border-b border-slate-200 flex items-center justify-between text-xs bg-white">
+              <div className="p-3 border-b border-slate-200 flex items-center justify-between text-xs bg-white">
                 <span className="font-bold text-slate-800">
-                  Referenced Studies ({report.total_studies_scanned})
+                  Referenced Studies ({filteredStudies.length})
                 </span>
                 <button onClick={() => setShowReferences(false)} className="text-slate-400 hover:text-slate-700 p-1">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
+              <div className="flex border-b border-slate-200 bg-slate-50 text-[11px] font-semibold overflow-x-auto">
+                {["ALL", "SUPPORTING", "CONTRADICTORY", "BACKGROUND"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setReferenceTab(tab)}
+                    className={`px-3 py-2 border-b-2 whitespace-nowrap transition-colors ${referenceTab === tab ? "border-teal-600 text-teal-700 bg-white" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                {report.studies?.map((item: any) => (
+                {filteredStudies.map((item: any) => (
                   <div
                     key={item.pmid}
                     className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-teal-600 transition-all space-y-2 text-left shadow-2xs"
@@ -418,8 +436,8 @@ export default function Home() {
                     </div>
 
                     <div className="flex items-center justify-between pt-1 text-[10px]">
-                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold uppercase">
-                        {item.badge}
+                      <span className={`px-2 py-0.5 rounded font-bold uppercase ${item.evidence_relationship === "SUPPORTING" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                        {item.evidence_relationship}
                       </span>
                       <button 
                         onClick={(e) => copyCitation(item.pmid, e)}
