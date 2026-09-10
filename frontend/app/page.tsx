@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { 
   Plus, Home as HomeIcon, Filter, Database, Menu, X, BookOpen, 
-  Copy, CheckCheck, Share2, ArrowRight, ArrowUp, Grid, HelpCircle, FileText
+  Copy, CheckCheck, Share2, ArrowRight, ArrowUp, Grid, HelpCircle, FileText, Bot
 } from "lucide-react";
 
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [agentStepText, setAgentStepText] = useState("Initializing Multi-Agent Pipeline...");
   const [report, setReport] = useState<any | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showReferences, setShowReferences] = useState(false);
@@ -28,10 +29,14 @@ export default function Home() {
     if (!q.trim()) return;
     setLoading(true);
     setReport(null);
+    setAgentStepText("Planner Agent analyzing query & generating sub-topics...");
 
     if (!recentThreads.includes(q)) {
       setRecentThreads(prev => [q, ...prev.slice(0, 7)]);
     }
+
+    setTimeout(() => setAgentStepText("Multi-Search Agents querying PubMed in parallel..."), 600);
+    setTimeout(() => setAgentStepText("Verifier Agent auditing study quality & filtering data..."), 1200);
 
     try {
       const res = await fetch(`${apiUrl}/api/search?q=${encodeURIComponent(q)}`);
@@ -122,7 +127,7 @@ export default function Home() {
               <Menu className="w-4 h-4" />
             </button>
             <span className="text-xs font-bold text-slate-800 truncate max-w-sm sm:max-w-md">
-              {report ? report.query : "Clinical Consensus Report Engine"}
+              {report ? report.query : "Multi-Agent Consensus Engine"}
             </span>
           </div>
 
@@ -150,10 +155,10 @@ export default function Home() {
                 </div>
                 <div className="space-y-2">
                   <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-                    Clinical Research Starts Here
+                    Multi-Agent Clinical Research
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                    Synthesizes 35M+ PubMed human trials into publication-grade consensus reports, methodology tables, and visual evidence appraisals.
+                    Planner agents plan sub-topics, multi-search agents query PubMed in parallel, and verifier agents audit evidence quality.
                   </p>
                 </div>
 
@@ -185,20 +190,23 @@ export default function Home() {
                   </span>
                 </div>
 
-                {/* Funnel Badge */}
-                <div className="p-4 rounded-2xl bg-[#f0f4f9] border border-slate-200 flex items-center justify-between flex-wrap gap-4 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
-                    <span className="font-bold text-slate-800">Deep Consensus ({funnel.steps})</span>
+                {/* Multi-Agent Steps Log Display */}
+                {report.agent_steps && (
+                  <div className="p-4 rounded-2xl bg-[#f0f4f9] border border-slate-200 space-y-2 text-xs">
+                    <div className="flex items-center gap-2 font-bold text-slate-800">
+                      <Bot className="w-4 h-4 text-teal-600 animate-bounce" />
+                      <span>Multi-Agent Execution Pipeline (Planner → Multi-Search → Verifier)</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                      {report.agent_steps.map((st: any, i: number) => (
+                        <div key={i} className="bg-white p-2 rounded-xl border border-slate-200 text-slate-600">
+                          <strong className="text-teal-700 block">{st.agent}</strong>
+                          <span className="truncate block">{st.status}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-slate-600 font-medium font-mono">
-                    <span>Retrieved: <strong className="text-slate-900">{funnel.retrieved}</strong></span>
-                    <span>→</span>
-                    <span>Eligible: <strong className="text-slate-900">{funnel.eligible}</strong></span>
-                    <span>→</span>
-                    <span>Included: <strong className="text-teal-700">{funnel.included}</strong></span>
-                  </div>
-                </div>
+                )}
 
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 leading-snug">
                   {rep.title || report.query}
@@ -210,7 +218,7 @@ export default function Home() {
                     1. Introduction
                   </h2>
                   <p className="text-sm sm:text-base text-slate-800 leading-relaxed">
-                    {rep.introduction || "The evolution of the clinical hypothesis reflects progressive refinement from early pharmacologic observations toward verified molecular and circuit-level mechanisms [HOWES 2009]."}
+                    {rep.introduction}
                   </p>
                 </div>
 
@@ -220,11 +228,11 @@ export default function Home() {
                     2. Methods & Search Strategy
                   </h2>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    {rep.methods || "This Deep Search synthesis evaluated human clinical cohorts and neurochemical trials indexed across PubMed and PMC corpora with semantic cross-validation."}
+                    {rep.methods}
                   </p>
                 </div>
 
-                {/* 3. Research Consensus Breakdown Meter */}
+                {/* 3. Consensus Breakdown */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-slate-800 uppercase tracking-wider">Research Consensus Breakdown</span>
@@ -252,7 +260,7 @@ export default function Home() {
                     3. Results & Foundational Papers
                   </h2>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    {rep.results || "Literature appraisal confirms that while striatal dysregulation is central, alternative neurochemical pathways characterize treatment-resistant sub-populations."}
+                    {rep.results}
                   </p>
 
                   <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
@@ -265,10 +273,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {(rep.foundational_papers && rep.foundational_papers.length > 0 ? rep.foundational_papers : [
-                          {"paper": "The dopamine hypothesis of schizophrenia: version III", "summary": "Final common pathway model emphasizing presynaptic striatal dysregulation.", "year": "2009", "citations": "2,786", "author": "O. Howes et al."},
-                          {"paper": "Dopamine in schizophrenia: a review and reconceptualization", "summary": "Cortical-striatal imbalance revision establishing predictive biomarkers.", "year": "1991", "citations": "2,897", "author": "K. Davis et al."}
-                        ]).map((fp: any, idx: number) => (
+                        {(rep.foundational_papers || []).map((fp: any, idx: number) => (
                           <tr key={idx} className="hover:bg-slate-50">
                             <td className="p-3 font-semibold text-slate-900">{fp.paper} ({fp.author})</td>
                             <td className="p-3 text-slate-600">{fp.summary}</td>
@@ -296,10 +301,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {(rep.evidence_claims && rep.evidence_claims.length > 0 ? rep.evidence_claims : [
-                          {"claim": "Presynaptic striatal dopamine is elevated in psychosis", "strength": "Strong", "bars": 9, "reasoning": "Replicated across PET/SPECT meta-analyses and risk-state studies.", "papers": "FUSAR-POLI 2012, MCCUTCHEON 2020"},
-                          {"claim": "Dopamine alone accounts for all schizophrenia cases", "strength": "Weak", "bars": 3, "reasoning": "Alternative neurotransmitter and circuit architectures remain unsettled.", "papers": "KESHAVAN 2026, HONER 2009"}
-                        ]).map((item: any, idx: number) => (
+                        {(rep.evidence_claims || []).map((item: any, idx: number) => (
                           <tr key={idx} className="hover:bg-slate-50">
                             <td className="p-3 font-semibold text-slate-900 min-w-[200px]">{item.claim}</td>
                             <td className="p-3 whitespace-nowrap">
@@ -340,12 +342,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {(rep.research_gaps?.rows && rep.research_gaps.rows.length > 0 ? rep.research_gaps.rows : [
-                          {"domain": "Striatal Mechanisms", "counts": [36, 12, 18, 4]},
-                          {"domain": "Cortical Deficits", "counts": [10, 8, 9, 2]},
-                          {"domain": "Treatment Resistance", "counts": [2, 1, 4, 0]},
-                          {"domain": "Stress Pathways", "counts": [1, 1, 9, 1]}
-                        ]).map((r: any, idx: number) => (
+                        {(rep.research_gaps?.rows || []).map((r: any, idx: number) => (
                           <tr key={idx}>
                             <td className="p-3 font-semibold text-slate-900 whitespace-nowrap">{r.domain}</td>
                             {r.counts.map((cnt: number, cIdx: number) => {
@@ -374,7 +371,7 @@ export default function Home() {
                     4. Discussion & Limitations
                   </h2>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    {rep.discussion || "The most durable finding is that psychosis is strongly associated with elevated presynaptic dopamine function in the striatum. However, treatment-resistant schizophrenia frequently exhibits normal dopamine synthesis, pointing toward alternate neurobiological subtypes [KESHAVAN 2026]."}
+                    {rep.discussion}
                   </p>
                 </div>
 
@@ -384,7 +381,7 @@ export default function Home() {
                     5. Conclusion
                   </h2>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    {rep.conclusion || "The evolution of the dopamine hypothesis of schizophrenia is best understood as a narrowing and deepening process, embedding presynaptic striatal psychosis within broader developmental and circuit dysfunction [HOWES 2009, DAVIS 1991]."}
+                    {rep.conclusion}
                   </p>
                 </div>
 
@@ -394,10 +391,7 @@ export default function Home() {
                     <HelpCircle className="w-3.5 h-3.5" /> Open Research Questions
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(rep.open_questions && rep.open_questions.length > 0 ? rep.open_questions : [
-                      {"question": "Which upstream circuit abnormalities most reliably trigger presynaptic striatal excess?", "why": "Directly links imaging findings to preventive disease-modifying targets."},
-                      {"question": "Which biomarkers best distinguish dopamine-responsive from treatment-resistant illness?", "why": "Accelerates timely transition to targeted non-D2 therapies."}
-                    ]).map((q: any, idx: number) => (
+                    {(rep.open_questions || []).map((q: any, idx: number) => (
                       <div 
                         key={idx}
                         onClick={() => handleSearch(q.question)}
@@ -419,9 +413,12 @@ export default function Home() {
             )}
 
             {loading && (
-              <div className="py-24 text-center space-y-3">
+              <div className="py-28 text-center space-y-4">
                 <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-xs text-slate-500 font-medium">Synthesizing clinical trials and constructing visual evidence intelligence...</p>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-teal-700 animate-pulse">{agentStepText}</p>
+                  <p className="text-[11px] text-slate-400">Multi-Agent workflow running in parallel...</p>
+                </div>
               </div>
             )}
 
@@ -516,10 +513,10 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-700">+ Corpus: PubMed</span>
                 <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-teal-700 flex items-center gap-1">
-                  <Database className="w-3 h-3" /> Deep Consensus
+                  <Database className="w-3 h-3" /> Multi-Agent Consensus
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Deep Research Engine</span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">Evidex Multi-Agent Orchestrator</span>
             </div>
           </div>
         </div>
