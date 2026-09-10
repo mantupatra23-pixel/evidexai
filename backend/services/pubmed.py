@@ -32,24 +32,6 @@ def build_pubmed_clinical_query(user_query: str, min_year: int = None, max_year:
 
     return query
 
-def expand_clinical_subqueries(user_query: str) -> list:
-    q = user_query.strip().lower()
-    queries = [build_pubmed_clinical_query(q)]
-    
-    if "vitamin d" in q and "fracture" in q:
-        queries.append("vitamin d supplementation fracture elderly randomized controlled trial")
-        queries.append("vitamin d3 calcium bone density older adults meta-analysis")
-    elif "sglt2" in q or "heart failure" in q:
-        queries.append("sglt2 inhibitors heart failure hospitalization mortality trial")
-        queries.append("dapagliflozin empagliflozin cardiovascular outcomes clinical study")
-    elif "aspirin" in q or "cardiovascular" in q:
-        queries.append("aspirin primary prevention cardiovascular events randomized trial")
-        queries.append("antiplatelet therapy bleeding risk systematic review")
-    else:
-        queries.append(f"({q}) AND (randomized controlled trial[Publication Type] OR meta-analysis[Publication Type])")
-    
-    return queries
-
 def classify_study_rigorous(title: str, abstract: str, pub_types: list) -> str:
     title_lower = title.lower()
     abstract_lower = abstract.lower()
